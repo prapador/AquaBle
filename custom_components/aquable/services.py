@@ -121,7 +121,8 @@ LIGHT_CLEAR_SCHEMA = vol.Schema(
 
 
 async def _async_execute_commands(
-    hass: HomeAssistant, address: str, commands: list[bytearray]
+    hass: HomeAssistant, address: str, commands: list[bytearray],
+    *, prefer_write_response: bool = False,
 ) -> None:
     """Helper to connect to a device and push a list of commands sequentially."""
     ble_device = bluetooth.async_ble_device_from_address(hass, address, connectable=True)
@@ -142,12 +143,40 @@ async def _async_execute_commands(
         if not client or not client.is_connected:
             raise HomeAssistantError(f"Failed to connect to device {address}")
 
+        # My Chihiros uses acknowledged GATT writes when the characteristic
+        # supports them. Limit this behavior to experimental Custom curve uploads
+        # so already-working manual controls and other devices are unchanged.
+        tx_char = client.services.get_characteristic(UART_TX_UUID) if prefer_write_response else None
+        with_response = bool(tx_char and "write" in tx_char.properties)
+        if prefer_write_response:
+            _LOGGER.info(
+                "Custom curve transport for %s: %d frames, GATT write response=%s",
+                address, len(commands), with_response,
+            )
+            if not with_response:
+                _LOGGER.warning(
+                    "Custom curve characteristic for %s does not advertise acknowledged writes; "
+                    "falling back to unacknowledged BLE transport", address
+                )
+
         for i, cmd in enumerate(commands):
             _LOGGER.debug("Writing command %d/%d: %s", i + 1, len(commands), cmd.hex())
-            await client.write_gatt_char(UART_TX_UUID, cmd, response=False)
+            if prefer_write_response and tx_char and not with_response:
+                max_size = tx_char.max_write_without_response_size
+                if len(cmd) > max_size:
+                    raise HomeAssistantError(
+                        f"Custom BLE frame {i + 1} is {len(cmd)} bytes, "
+                        f"but unacknowledged writes allow only {max_size} bytes"
+                    )
+            await client.write_gatt_char(
+                tx_char if tx_char else UART_TX_UUID, cmd, response=with_response
+            )
             await asyncio.sleep(0.1)
 
-        _LOGGER.info("Successfully pushed configuration to %s", address)
+        _LOGGER.info(
+            "%d BLE frames written to %s (GATT response=%s; device execution unverified)",
+            len(commands), address, with_response,
+        )
 
     except BleakError as err:
         raise HomeAssistantError(f"Bluetooth error writing to {address}: {err}")
@@ -223,12 +252,15 @@ async def _execute_on_master_and_slaves(
     hass: HomeAssistant,
     master_coord: AquaBleCoordinator,
     commands: list[bytearray],
+    *, prefer_write_response: bool = False,
 ) -> None:
     """Execute commands on the master light and mirror them to any configured slave lights.
 
     Sync is for lights only; dosers are never mirrored.
     """
-    await _async_execute_commands(hass, master_coord.address, commands)
+    await _async_execute_commands(
+        hass, master_coord.address, commands, prefer_write_response=prefer_write_response
+    )
     await master_coord.async_request_refresh()
 
     if not master_coord.entry or master_coord.device_type == DEVICE_TYPE_DOSER:
@@ -267,7 +299,10 @@ async def _execute_on_master_and_slaves(
                 else:
                     slave_commands.append(cmd)
 
-            await _async_execute_commands(hass, slave_coord.address, slave_commands)
+            await _async_execute_commands(
+                hass, slave_coord.address, slave_commands,
+                prefer_write_response=prefer_write_response,
+            )
             await slave_coord.async_request_refresh()
         except Exception as e:
             _LOGGER.warning("Failed to sync commands to slave light %s: %s", slave_id, e)
@@ -524,7 +559,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         )
         # Only persist after the Bluetooth transaction completes. BLE writes
         # without response still cannot guarantee that firmware accepted them.
-        await _execute_on_master_and_slaves(hass, coord, commands)
+        await _execute_on_master_and_slaves(
+            hass, coord, commands, prefer_write_response=True
+        )
         if coord.entry:
             options = dict(coord.entry.options)
             options["custom_curve"] = normalized

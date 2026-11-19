@@ -21,6 +21,7 @@ class AquaBleLightCard extends LitElement {
       _manualLevels: { type: Object },
       _customPoints: { type: Array },
       _customError: { type: String },
+      _customLastUploadAt: { type: String },
       _sceneError: { type: String },
       _editingIndex: { type: Number },
     };
@@ -47,6 +48,8 @@ class AquaBleLightCard extends LitElement {
     this._customPoints = [];
     this._customLoadedFor = null;
     this._customError = "";
+    this._customSavedSignature = "";
+    this._customLastUploadAt = "";
     this._sceneError = "";
     this._sceneLoadedFor = null;
   }
@@ -87,6 +90,8 @@ class AquaBleLightCard extends LitElement {
           return {...point, levels: {...point.levels}, anchor};
         });
         this._customLoadedFor = deviceId;
+        this._customSavedSignature = this._customSignature;
+        this._customLastUploadAt = "";
       }
     }
   }
@@ -283,6 +288,14 @@ class AquaBleLightCard extends LitElement {
     }
   }
 
+  get _customSignature() {
+    return JSON.stringify(this._customPoints.map(({time, levels}) => ({time, levels})));
+  }
+
+  get _customUnsaved() {
+    return this._customSignature !== this._customSavedSignature;
+  }
+
   _defaultCustomPoints() {
     const values = (warm) => Object.fromEntries(
       this._channels.map(({key}) => [key, key === "warm_white" ? warm : 0])
@@ -373,7 +386,11 @@ class AquaBleLightCard extends LitElement {
         device_id: this._deviceId,
         points: this._customPoints.map(({time, levels}) => ({time, levels})),
       });
-      // Keep the visual order; the backend sends the chronological order to BLE.
+      this._customSavedSignature = this._customSignature;
+      this._customLastUploadAt = new Date().toLocaleTimeString([], {
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+      // Keep the visual order; the backend sends chronological BLE points.
     } catch (error) {
       this._customError = error?.message || "Could not send custom curve";
       console.error("Failed to send custom curve:", error);

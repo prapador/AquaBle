@@ -34,16 +34,20 @@ card.hass = {
 };
 card.updated(new Set(["hass"]));
 assert.deepEqual(Array.from(card._customPoints, p => p.anchor), ["00:00", "23:30", null]);
+assert.equal(card._customUnsaved, false, "loaded points match the stored HA copy");
+assert.equal(card._customLastUploadAt, "", "a loaded HA copy is not proof of a BLE upload");
 
 card._updateCustomPoint(1, "time", "21:30");
 assert.equal(card._customPoints[1].time, "23:30", "fixed endpoint cannot be edited");
 card._updateCustomPoint(2, "time", "23:30");
 assert.match(card._customError, /two points/i);
+assert.equal(card._customUnsaved, false, "unchanged duplicate points are not marked as new edits");
 await card._applyCustomCurve();
 assert.equal(sent.length, 0, "duplicate hours must prevent all BLE service calls");
 
 card._updateCustomPoint(2, "time", "22:30");
 assert.equal(card._customError, "");
+assert.equal(card._customUnsaved, true, "editing must mark a curve as not yet uploaded");
 card._moveCustomPoint(2, -1);
 assert.deepEqual(Array.from(card._customPoints, p => p.time), ["00:00", "22:30", "23:30"]);
 card._moveCustomPoint(0, 1);
@@ -56,6 +60,8 @@ assert.equal(sent.length, 1);
 assert.equal(sent[0].service, "light_set_custom_curve");
 assert.deepEqual(Array.from(sent[0].data.points, p => p.time), ["22:30", "00:00", "23:30"], "service preserves editing order");
 assert.equal(card._customPoints[0].time, "22:30", "successful save preserves editing order");
+assert.equal(card._customUnsaved, false, "successful send updates the editor's saved signature");
+assert.ok(card._customLastUploadAt, "last send time is displayed");
 
 card._removeCustomPoint(0);
 assert.equal(card._customPoints.length, 2, "ordinary points can be removed");

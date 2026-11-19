@@ -333,6 +333,15 @@ export const cardStyles = css`
     color: var(--error-color, #f44336);
     font-size: 0.85rem;
   }
+  .custom-upload-status {
+    margin: 12px 0 6px;
+    font-size: 0.85rem;
+    color: var(--secondary-text-color);
+  }
+  .custom-upload-status.unsaved {
+    color: var(--warning-color, #ffa726);
+    font-weight: 600;
+  }
   .custom-point .slider-label { flex: 0 0 94px; width: 94px; }
   .custom-point .slider-val { flex: 0 0 64px; width: 64px; white-space: nowrap; }
   .custom-point .custom-help { margin: 8px 0; }
