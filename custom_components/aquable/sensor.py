@@ -264,7 +264,12 @@ class LightActiveSchedulesSensor(AquaBleEntity, SensorEntity):  # pyright: ignor
                     "channel_brightness": sched.channel_brightness,
                 }
                 for idx, sched in enumerate(data.schedules)
-            ]
+            ],
+            "channel_keys": [
+                key for key, _ in sorted(self.coordinator.model_info.colors.items(), key=lambda item: item[1])
+            ] if self.coordinator.model_info and self.coordinator.model_info.colors else [
+                "red", "green", "blue", "white"
+            ],
         }
 
     def _handle_coordinator_update(self) -> None:

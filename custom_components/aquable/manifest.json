@@ -1,16 +1,16 @@
 {
   "domain": "aquable",
   "name": "AquaBle",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "codeowners": [
-    "@caleb-venner"
+    "@prapador"
   ],
   "config_flow": true,
   "dependencies": [
     "bluetooth"
   ],
-  "documentation": "https://github.com/caleb-venner/AquaBle",
-  "issue_tracker": "https://github.com/caleb-venner/AquaBle/issues",
+  "documentation": "https://github.com/prapador/AquaBle",
+  "issue_tracker": "https://github.com/prapador/AquaBle/issues",
   "iot_class": "local_polling",
   "requirements": [
     "bleak>=0.21.0",

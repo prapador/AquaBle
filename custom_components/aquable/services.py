@@ -56,6 +56,7 @@ LIGHT_MANUAL_SCHEMA = vol.Schema(
     {
         vol.Required("device_id"): cv.string,
         vol.Optional("white", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional("warm_white", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("red", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("green", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("blue", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
@@ -74,6 +75,7 @@ LIGHT_AUTO_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(min=1, max=180)
         ),
         vol.Optional("white", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        vol.Optional("warm_white", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("red", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("green", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
         vol.Optional("blue", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),

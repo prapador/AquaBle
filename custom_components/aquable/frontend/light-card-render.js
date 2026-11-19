@@ -1,5 +1,5 @@
-import { html } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
-import { CHANNEL_COLORS, WEEKDAYS } from "./constants.js";
+import { html, svg } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+import { WEEKDAYS } from "./constants.js";
 
 /**
  * Generate SVG path data for a 24-hour channel brightness ramp curve.
@@ -115,10 +115,9 @@ function renderSchedulesTab(card) {
           </g>
 
           <!-- Channel Curves -->
-          <path d="${generateChannelPath(schedules, 0, 360, 110)}" fill="rgba(244, 67, 54, 0.15)" stroke="#f44336" stroke-width="2" />
-          <path d="${generateChannelPath(schedules, 1, 360, 110)}" fill="rgba(76, 175, 80, 0.15)" stroke="#4caf50" stroke-width="2" />
-          <path d="${generateChannelPath(schedules, 2, 360, 110)}" fill="rgba(33, 150, 243, 0.15)" stroke="#2196f3" stroke-width="2" />
-          <path d="${generateChannelPath(schedules, 3, 360, 110)}" fill="rgba(255, 255, 255, 0.1)" stroke="#e0e0e0" stroke-width="2" stroke-dasharray="4 2" />
+          ${card._channels.map((channel, idx) => svg`
+            <path d="${generateChannelPath(schedules, idx, 360, 110)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
+          `)}
 
           <!-- Current Time Indicator -->
           <line class="time-marker-line" x1="${currentX}" y1="0" x2="${currentX}" y2="110" />
@@ -187,8 +186,8 @@ function renderSchedulesTab(card) {
                     <div class="channel-pills">
                       ${(sched.channels || sched.channel_brightness || []).map(
                         (b, cIdx) => html`
-                          <div class="channel-pill ${['red', 'green', 'blue', 'white'][cIdx] || 'white'}">
-                            ${CHANNEL_COLORS[cIdx] ? CHANNEL_COLORS[cIdx].name : `Ch${cIdx}`}: ${b}%
+                          <div class="channel-pill ${card._channels[cIdx]?.key || 'white'}">
+                            ${card._channels[cIdx]?.name || `Ch${cIdx}`}: ${b}%
                           </div>
                         `
                       )}
@@ -301,10 +300,11 @@ function renderAddTab(card) {
         <ha-icon icon="mdi:palette"></ha-icon>
         Peak Channel Levels
       </div>
-      ${['Red', 'Green', 'Blue', 'White'].map(
-        (name, idx) => html`
+      ${card._isTunableWhite ? renderTemperatureControl(card, "schedule") : ''}
+      ${card._channels.map(
+        (channel, idx) => html`
           <div class="slider-row">
-            <span class="slider-label" style="color: ${CHANNEL_COLORS[idx].hex}">${name}</span>
+            <span class="slider-label" style="color: ${channel.hex}">${channel.name}</span>
             <ha-slider
               min="0"
               max="100"
@@ -391,10 +391,11 @@ function renderManualTab(card) {
         <ha-icon icon="mdi:tune"></ha-icon>
         Instant Manual Brightness
       </div>
-      ${['Red', 'Green', 'Blue', 'White'].map(
-        (name, idx) => html`
+      ${card._isTunableWhite ? renderTemperatureControl(card, "manual") : ''}
+      ${card._channels.map(
+        (channel, idx) => html`
           <div class="slider-row">
-            <span class="slider-label" style="color: ${CHANNEL_COLORS[idx].hex}">${name}</span>
+            <span class="slider-label" style="color: ${channel.hex}">${channel.name}</span>
             <ha-slider
               min="0"
               max="100"
@@ -418,5 +419,32 @@ function renderManualTab(card) {
         </mwc-button>
       </div>
     </div>
+  `;
+}
+
+/** Kelvin is an approximate two-channel mix, not a calibrated spectral measurement. */
+function renderTemperatureControl(card, mode) {
+  const levels = mode === "manual" ? card._manualLevels : card._newSchedule.channels;
+  const fallback = mode === "manual" ? card._manualKelvin : card._scheduleKelvin;
+  const kelvin = card._temperature(levels, fallback);
+  const brightness = Math.min(100, (levels[0] || 0) + (levels[1] || 0));
+  return html`
+    <div class="slider-row">
+      <span class="slider-label">Temperature (approx.)</span>
+      <ha-slider min="2800" max="8000" step="100" pin
+        .value=${kelvin}
+        @change=${(e) => card._setWhiteMix(mode, { kelvin: Number(e.target.value) })}
+      ></ha-slider>
+      <span class="slider-val">${kelvin} K</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">Combined brightness</span>
+      <ha-slider min="0" max="100" step="1" pin
+        .value=${brightness}
+        @change=${(e) => card._setWhiteMix(mode, { brightness: Number(e.target.value) })}
+      ></ha-slider>
+      <span class="slider-val">${brightness}%</span>
+    </div>
+    <div class="schedule-meta">Approximate two-channel mix; adjust individual channels below for finer control.</div>
   `;
 }

@@ -1,5 +1,7 @@
 {
-  "name": "AquaBle",
+  "name": "AquaBle (Tiny fork)",
   "render_readme": true,
-  "domains": ["aquable"]
+  "domains": [
+    "aquable"
+  ]
 }
