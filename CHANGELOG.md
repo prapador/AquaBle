@@ -6,7 +6,7 @@
 
 - Use Home Assistant's configured local time when syncing light clocks, rather than naive system `datetime.now()` (which can be UTC on HA OS).
 - When switching to Auto, synchronize the device clock **before** re-enabling the scheduler.
-- After adding or editing a hardware schedule, send commands in the order **set local time → write schedule → re-enable Auto**, so the device can reevaluate the active time window.
+- After adding or editing a hardware schedule, send commands in the order **set local time → enable Auto → write schedule → re-enable Auto**, so the device can reevaluate the active time window.
 - Use the local timezone also when regenerating time commands for synchronized secondary lights.
 - Include regression tests for clock frames, auto-mode order and the Tiny warm-white schedule payload.
 
