@@ -332,7 +332,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         channel_levels = _extract_channel_levels(coord.model_info, coord.num_channels, call.data)
         brightness = tuple(channel_levels)
         ramp_up_minutes = call.data["ramp_up_minutes"]
-        weekdays = call.data.get("weekdays")
+        weekdays = (
+            ["everyday"] if coord.model_info and coord.model_info.name == "Z Light TINY"
+            else call.data.get("weekdays")
+        )
 
         commands_to_send: list[bytearray] = []
 
@@ -342,6 +345,39 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         if new_start >= new_end:
             raise HomeAssistantError("Sunrise time must be before sunset time.")
+
+        # Z Light Tiny exposes a single Scene Auto schedule, separately from Custom.
+        # Replace all old scene slots (including legacy multiple slots) with one
+        # hardware scene, without touching the device's Custom curve controller.
+        if coord.model_info and coord.model_info.name == "Z Light TINY":
+            new_sched = LightSchedule(
+                sunrise_hour=sunrise.hour,
+                sunrise_minute=sunrise.minute,
+                sunset_hour=sunset.hour,
+                sunset_minute=sunset.minute,
+                ramp_up_minutes=ramp_up_minutes,
+                weekday_mask=new_mask,
+                channel_brightness=list(channel_levels),
+            )
+            _, commands_to_send = generators.generate_light_replace_scene_sequence(
+                (0, 0), sunrise, sunset, brightness, ramp_up_minutes, weekdays, dt_util.now()
+            )
+            await _execute_on_master_and_slaves(hass, coord, commands_to_send)
+            if coord.entry:
+                options = dict(coord.entry.options)
+                options.update(schedules=[new_sched.to_dict()], light_controller_mode="auto")
+                hass.config_entries.async_update_entry(coord.entry, options=options)
+                for slave_id in coord.entry.options.get("sync_devices", []):
+                    try:
+                        slave = _get_coordinator(hass, slave_id)
+                        if slave.entry:
+                            slave_opts = dict(slave.entry.options)
+                            slave_opts.update(schedules=[new_sched.to_dict()], light_controller_mode="auto")
+                            hass.config_entries.async_update_entry(slave.entry, options=slave_opts)
+                    except Exception as exc:
+                        _LOGGER.warning("Could not update Tiny slave %s: %s", slave_id, exc)
+                await coord.async_request_refresh()
+            return
 
         # 1. Update persisted schedules in ConfigEntry options (primary source of truth)
         if coord.entry:

@@ -125,6 +125,14 @@ entity: sensor.chihiros_doser_head_1_dosed_today
 
 ---
 
+## AquaBLE Tiny display and schedules (v4.1.4)
+
+The Tiny card now has **Auto**, **Custom Curve**, and **Manual Control** tabs.
+**Auto** displays a 0–100% ramp chart and one daily sunrise/sunset schedule editor; saving replaces prior Scene Auto slots (it does not modify Custom curves).
+**Custom Curve** retains the existing 30-minute BLE keyframe protocol and now displays **approximate Kelvin, combined brightness and independent white/warm-white levels for each point**, with a labeled 0–100% Y axis. Temperature values are estimated channel mixes, not physical readings.
+
+> **Caution:** Scene Auto has not been demonstrated to illuminate the user's Tiny firmware, even with a valid single schedule. Custom Curve is the recommended test path. Changing an Auto schedule can select Scene Auto mode, but does not erase saved Custom points.
+
 ## Chihiros Z Light Tiny — Custom Curves (fork)
 
 The custom dashboard card has two *different* automatic controllers:

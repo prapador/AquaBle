@@ -1,5 +1,14 @@
 # Changelog
 
+## [v4.1.4] — 2026-11-19 — prapador fork
+
+- **Tiny Custom Curve UX:** Every control point now shows approximate color temperature (2800–8000 K), combined brightness and individual cool/warm white channel levels. Values update together when Kelvin or brightness changes; only physical channel levels are sent to the lamp.
+- Both Auto and Custom preview charts now have a labeled **0–100% vertical axis**.
+- **Tiny Scene Auto** now has a single daily sunrise/sunset form and plot in one tab. Saving replaces all older scene slots with one fresh scene; other models retain multi-schedule support.
+- Scene replacement writes a scene-specific reset and keeps Custom controller data separate. Existing Custom curves are not deleted when saving a Scene Auto schedule.
+- All functionality remains experimental until physically checked on the Tiny. In particular, the Scene Auto firmware behavior has not yet been confirmed, whereas Custom was reported working in the previous version.
+
+
 ## [v4.1.3] — 2026-11-19 — prapador fork (experimental)
 
 **Z Light Tiny Custom Curve controller**, separate from the existing Scene Auto controller.

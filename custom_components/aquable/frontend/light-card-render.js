@@ -1,47 +1,55 @@
 import { html, svg } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 import { WEEKDAYS } from "./constants.js";
 
-/**
- * Generate SVG path data for a 24-hour channel brightness ramp curve.
- */
-function generateChannelPath(schedules, chIdx, width, height) {
-  if (!schedules || schedules.length === 0) {
-    return `M 0,${height} L ${width},${height}`;
-  }
+// Both charts share the same 0–100% Y scale and 24-hour X scale.
+const PLOT = {left: 36, right: 352, top: 10, bottom: 104};
+const plotX = minutes => PLOT.left + minutes / 1440 * (PLOT.right - PLOT.left);
+const plotY = percent => PLOT.bottom - Math.max(0, Math.min(100, percent)) / 100 * (PLOT.bottom - PLOT.top);
 
-  // 1440 minutes in a day. Map minutes (0-1440) to x (0-width), brightness (0-100) to y (height-0).
+function renderChartAxes() {
+  return svg`
+    <g class="timeline-grid">
+      ${[0, 25, 50, 75, 100].map(percent => svg`
+        <line x1="${PLOT.left}" y1="${plotY(percent)}" x2="${PLOT.right}" y2="${plotY(percent)}" />
+      `)}
+      ${[6, 12, 18].map(hour => svg`
+        <line x1="${plotX(hour * 60)}" y1="${PLOT.top}" x2="${plotX(hour * 60)}" y2="${PLOT.bottom}" />
+      `)}
+    </g>
+    <g class="timeline-axis">
+      ${[0, 25, 50, 75, 100].map(percent => svg`
+        <text x="31" y="${plotY(percent) + 3}" text-anchor="end">${percent}%</text>
+      `)}
+      ${[0, 6, 12, 18, 24].map(hour => svg`
+        <text x="${plotX(hour * 60)}" y="120"
+          text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">
+          ${String(hour).padStart(2, '0')}:00
+        </text>
+      `)}
+    </g>
+  `;
+}
+
+/** Generate a sampled 24-hour ramp at the shared chart coordinates. */
+function generateChannelPath(schedules, chIdx) {
   const points = [];
-  points.push({ x: 0, y: height });
-
-  // Sample every 10 minutes to build smooth curve
   for (let m = 0; m <= 1440; m += 10) {
-    let maxB = 0;
-    for (const sched of schedules) {
-      const partsSunrise = (sched.sunrise || "00:00").split(":").map(Number);
-      const partsSunset = (sched.sunset || "00:00").split(":").map(Number);
-      const sunriseMin = partsSunrise[0] * 60 + partsSunrise[1];
-      const sunsetMin = partsSunset[0] * 60 + partsSunset[1];
+    let peakBrightness = 0;
+    for (const sched of schedules || []) {
+      const [sh, sm] = (sched.sunrise || '00:00').split(':').map(Number);
+      const [eh, em] = (sched.sunset || '00:00').split(':').map(Number);
+      const from = sh * 60 + sm, to = eh * 60 + em;
       const ramp = sched.ramp_up_minutes || 0;
-      const peak = (sched.channels && sched.channels[chIdx]) || (sched.channel_brightness && sched.channel_brightness[chIdx]) || 0;
-
-      if (sunsetMin > sunriseMin && m >= sunriseMin && m <= sunsetMin) {
-        let b = peak;
-        if (ramp > 0 && m < sunriseMin + ramp) {
-          b = peak * ((m - sunriseMin) / ramp);
-        } else if (ramp > 0 && m > sunsetMin - ramp) {
-          b = peak * ((sunsetMin - m) / ramp);
-        }
-        if (b > maxB) maxB = b;
-      }
+      const brightness = (sched.channels || sched.channel_brightness || [])[chIdx] ?? 0;
+      if (to <= from || m < from || m > to) continue;
+      let level = brightness;
+      if (ramp && m < from + ramp) level *= (m - from) / ramp;
+      else if (ramp && m > to - ramp) level *= (to - m) / ramp;
+      peakBrightness = Math.max(peakBrightness, level);
     }
-    const x = (m / 1440) * width;
-    const y = height - (maxB / 100) * (height - 10);
-    points.push({ x, y });
+    points.push(`${points.length ? 'L' : 'M'} ${plotX(m).toFixed(1)},${plotY(peakBrightness).toFixed(1)}`);
   }
-
-  points.push({ x: width, y: height });
-
-  return points.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x.toFixed(1)},${p.y.toFixed(1)}`, "");
+  return points.join(' ');
 }
 
 export function renderCard(card) {
@@ -66,14 +74,14 @@ export function renderCard(card) {
           class="tab ${card._activeTab === 'schedules' ? 'active' : ''}"
           @click=${() => card._setTab('schedules')}
         >
-          Schedules & Curve
+          ${card._isTunableWhite ? "Auto" : "Schedules & Curve"}
         </div>
-        <div
-          class="tab ${card._activeTab === 'add' ? 'active' : ''}"
-          @click=${() => card._setTab('add')}
-        >
-          ${card._editingIndex !== null ? `Edit Slot #${card._editingIndex + 1}` : 'Add Schedule'}
-        </div>
+        ${!card._isTunableWhite ? html`
+          <div class="tab ${card._activeTab === 'add' ? 'active' : ''}"
+            @click=${() => card._setTab('add')}>
+            ${card._editingIndex !== null ? `Edit Slot #${card._editingIndex + 1}` : "Add Schedule"}
+          </div>
+        ` : ''}
         ${card._isTunableWhite ? html`
           <div class="tab ${card._activeTab === 'custom' ? 'active' : ''}"
             @click=${() => card._setTab('custom')}>Custom Curve</div>
@@ -87,7 +95,7 @@ export function renderCard(card) {
       </div>
 
       ${card._activeTab === 'schedules' ? renderSchedulesTab(card) : ''}
-      ${card._activeTab === 'add' ? renderAddTab(card) : ''}
+      ${card._activeTab === 'add' && !card._isTunableWhite ? renderAddTab(card) : ''}
       ${card._activeTab === 'custom' && card._isTunableWhite ? renderCustomTab(card) : ''}
       ${card._activeTab === 'manual' ? renderManualTab(card) : ''}
     </ha-card>
@@ -98,7 +106,7 @@ function renderSchedulesTab(card) {
   const schedules = card._schedules;
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const currentX = (currentMinutes / 1440) * 360;
+  const currentX = plotX(currentMinutes);
 
   return html`
     <div class="section">
@@ -107,37 +115,30 @@ function renderSchedulesTab(card) {
         24-Hour Ramp Profile
       </div>
       <div class="timeline-container">
-        <svg class="curve-svg" viewBox="0 0 360 120" preserveAspectRatio="none">
-          <!-- Grid lines -->
-          <g class="timeline-grid">
-            <line x1="0" y1="30" x2="360" y2="30" />
-            <line x1="0" y1="60" x2="360" y2="60" />
-            <line x1="0" y1="90" x2="360" y2="90" />
-            <!-- Hour markers (every 6h) -->
-            <line x1="90" y1="0" x2="90" y2="120" />
-            <line x1="180" y1="0" x2="180" y2="120" />
-            <line x1="270" y1="0" x2="270" y2="120" />
-          </g>
+        <svg class="curve-svg" viewBox="0 0 360 124" preserveAspectRatio="none">
+          ${renderChartAxes()}
 
           <!-- Channel Curves -->
           ${card._channels.map((channel, idx) => svg`
-            <path d="${generateChannelPath(schedules, idx, 360, 110)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
+            <path d="${generateChannelPath(schedules, idx)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
           `)}
 
           <!-- Current Time Indicator -->
-          <line class="time-marker-line" x1="${currentX}" y1="0" x2="${currentX}" y2="110" />
+          <line class="time-marker-line" x1="${currentX}" y1="${PLOT.top}" x2="${currentX}" y2="${PLOT.bottom}" />
 
-          <!-- Axis Labels -->
-          <g class="timeline-axis">
-            <text x="5" y="118">00:00</text>
-            <text x="85" y="118">06:00</text>
-            <text x="175" y="118">12:00</text>
-            <text x="265" y="118">18:00</text>
-            <text x="330" y="118">24:00</text>
-          </g>
         </svg>
       </div>
 
+      ${card._isTunableWhite ? html`
+        <div class="section-title"><ha-icon icon="mdi:calendar-clock"></ha-icon>Auto · One schedule</div>
+        <p class="custom-help">A single sunrise/sunset schedule, as in My Chihiros. Saving replaces previous Scene Auto slots; Custom curves remain untouched.</p>
+        ${schedules.length > 1 ? html`<p class="custom-help">This device has ${schedules.length} legacy scenes. Saving will replace them with one schedule.</p>` : ''}
+        ${renderAddTab(card)}
+        ${card._sceneError ? html`<p class="custom-error">${card._sceneError}</p>` : ''}
+        <div class="button-row"><mwc-button outlined class="danger-btn"
+          @click=${() => card._clearSchedules()}
+          ?disabled=${card._loading || !schedules.length}>Clear Auto Schedule</mwc-button></div>
+      ` : html`
       <div class="section-title">
         <ha-icon icon="mdi:calendar-clock"></ha-icon>
         Configured Schedules (${schedules.length})
@@ -214,18 +215,19 @@ function renderSchedulesTab(card) {
           Clear All Schedules
         </mwc-button>
       </div>
+      `}
     </div>
   `;
 }
 
 function renderAddTab(card) {
-  const isEditing = card._editingIndex !== null;
+  const isEditing = card._editingIndex !== null && !card._isTunableWhite;
 
   return html`
     <div class="section">
       <div class="section-title">
         <ha-icon icon="${isEditing ? 'mdi:calendar-edit' : 'mdi:clock-outline'}"></ha-icon>
-        ${isEditing ? `Edit Schedule (Slot #${card._editingIndex + 1})` : 'Schedule Timing'}
+        ${card._isTunableWhite ? "Daily Auto Schedule" : isEditing ? `Edit Schedule (Slot #${card._editingIndex + 1})` : "Schedule Timing"}
       </div>
       <div class="form-grid">
         <div class="time-input-group">
@@ -284,22 +286,18 @@ function renderAddTab(card) {
         <span class="slider-val">${card._newSchedule.rampMinutes}m</span>
       </div>
 
-      <div class="section-title" style="margin-top: 16px;">
-        <ha-icon icon="mdi:calendar-week"></ha-icon>
-        Active Weekdays
-      </div>
-      <div class="weekday-row">
-        ${WEEKDAYS.map(
-          (d) => html`
-            <div
-              class="weekday-btn ${card._newSchedule.weekdays.includes(d.key) ? 'selected' : ''}"
-              @click=${() => card._toggleWeekday(d.key)}
-            >
-              ${d.label}
-            </div>
-          `
-        )}
-      </div>
+      ${!card._isTunableWhite ? html`
+        <div class="section-title" style="margin-top: 16px;">
+          <ha-icon icon="mdi:calendar-week"></ha-icon>
+          Active Weekdays
+        </div>
+        <div class="weekday-row">
+          ${WEEKDAYS.map(d => html`
+            <div class="weekday-btn ${card._newSchedule.weekdays.includes(d.key) ? 'selected' : ''}"
+              @click=${() => card._toggleWeekday(d.key)}>${d.label}</div>
+          `)}
+        </div>
+      ` : html`<p class="custom-help">Applies every day.</p>`}
 
       <div class="section-title">
         <ha-icon icon="mdi:palette"></ha-icon>
@@ -323,7 +321,10 @@ function renderAddTab(card) {
       )}
 
       <div class="button-row">
-        ${isEditing
+        ${card._isTunableWhite ? html`
+            <mwc-button raised @click=${() => card._saveSchedule()}
+              ?disabled=${card._loading}>Save Auto Schedule</mwc-button>
+          ` : isEditing
           ? html`
               <mwc-button
                 class="danger-btn"
@@ -371,8 +372,8 @@ function renderCustomTab(card) {
   const points = [...card._customPoints].sort((a, b) => a.time.localeCompare(b.time));
   const pathFor = (key) => points.map((point, index) => {
     const [hour, minute] = point.time.split(":").map(Number);
-    const x = (hour * 60 + minute) / 1440 * 360;
-    const y = 105 - (point.levels[key] || 0) * 0.95;
+    const x = plotX(hour * 60 + minute);
+    const y = plotY(point.levels[key] || 0);
     return `${index ? "L" : "M"} ${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
 
@@ -384,29 +385,17 @@ function renderCustomTab(card) {
       </div>
       <p class="custom-help">Separate from Scene Auto. Set brightness for both white channels at each half-hour point; the lamp interpolates between points. Applied directly to the lamp by Bluetooth.</p>
       <div class="timeline-container">
-        <svg class="curve-svg" viewBox="0 0 360 120" preserveAspectRatio="none">
-          <g class="timeline-grid">
-            <line x1="0" y1="30" x2="360" y2="30" />
-            <line x1="0" y1="60" x2="360" y2="60" />
-            <line x1="0" y1="90" x2="360" y2="90" />
-            <line x1="90" y1="0" x2="90" y2="105" />
-            <line x1="180" y1="0" x2="180" y2="105" />
-            <line x1="270" y1="0" x2="270" y2="105" />
-          </g>
+        <svg class="curve-svg" viewBox="0 0 360 124" preserveAspectRatio="none">
+          ${renderChartAxes()}
           ${card._channels.map(channel => svg`
             <path d="${pathFor(channel.key)}" stroke="${channel.hex}" stroke-width="2.5" fill="none"/>
           `)}
-          <g class="timeline-axis">
-            <text x="2" y="118">00:00</text>
-            <text x="85" y="118">06:00</text>
-            <text x="175" y="118">12:00</text>
-            <text x="265" y="118">18:00</text>
-            <text x="329" y="118">24:00</text>
-          </g>
         </svg>
       </div>
       ${points.map(point => {
         const idx = card._customPoints.indexOf(point);
+        const temperature = point.kelvin ?? card._temperature([point.levels.white, point.levels.warm_white]);
+        const brightness = Math.min(100, (point.levels.white || 0) + (point.levels.warm_white || 0));
         return html`
           <div class="custom-point">
             <div class="custom-point-header">
@@ -416,15 +405,30 @@ function renderCustomTab(card) {
                   ?disabled=${point.time === "00:00" || point.time === "23:30"}
                   @change=${e => card._updateCustomPoint(idx, "time", e.target.value)}/>
               </label>
-              <span class="custom-kelvin">~${card._temperature([
-                point.levels.white, point.levels.warm_white
-              ])} K</span>
+              <span class="custom-kelvin">${brightness ? `~${temperature} K · ${brightness}%` : "Off · 0%"}</span>
               <button class="icon-btn delete-btn" title="Remove point"
                 ?disabled=${["00:00", "23:30"].includes(point.time)}
                 @click=${() => card._removeCustomPoint(idx)}>
                 <ha-icon icon="mdi:delete-outline"></ha-icon>
               </button>
             </div>
+            <div class="slider-row">
+              <span class="slider-label">Temperature</span>
+              <ha-slider min="2800" max="8000" step="100" pin
+                .value=${temperature}
+                @change=${e => card._updateCustomMix(idx, {kelvin: Number(e.target.value)})}>
+              </ha-slider>
+              <span class="slider-val">${temperature} K</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Brightness</span>
+              <ha-slider min="0" max="100" step="1" pin
+                .value=${brightness}
+                @change=${e => card._updateCustomMix(idx, {brightness: Number(e.target.value)})}>
+              </ha-slider>
+              <span class="slider-val">${brightness}%</span>
+            </div>
+            <div class="custom-help">Approximate white balance · individual channels</div>
             ${card._channels.map(channel => html`
               <div class="slider-row">
                 <span class="slider-label" style="color:${channel.hex}">${channel.name}</span>

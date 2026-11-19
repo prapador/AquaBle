@@ -62,6 +62,26 @@ class TestTinyCustomCurveProtocol(unittest.TestCase):
         self.assertEqual(custom[6], 5)
         self.assertEqual(scene[6], 40)
 
+    def test_replacing_single_scene_does_not_reset_custom_curve(self):
+        _, frames = generators.generate_light_replace_scene_sequence(
+            (0, 0),
+            datetime.time(12, 0),
+            datetime.time(20, 0),
+            (0, 70),
+            30,
+            ["everyday"],
+            self.time,
+        )
+        self.assertEqual([frame[5] for frame in frames], [9, 5, 5, 25, 5])
+        self.assertEqual(frames[1][6], 40)  # reset scenes only
+        self.assertEqual(frames[2][6], 18)  # scene controller
+        self.assertEqual(frames[3][0], 165)
+        self.assertEqual(list(frames[3][6:14]), [12, 0, 20, 0, 30, 127, 0, 70])
+        self.assertEqual(frames[4][6], 18)
+        self.assertTrue(all(frame[6] != 5 for frame in frames if frame[5] == 5))
+        for frame in frames:
+            self.assertEqual(frame[-1], encoder._calculate_checksum(frame[:-1]))
+
     def test_resuming_custom_does_not_clear_points(self):
         _, frames = generators.generate_light_enable_custom_curve_sequence(
             (0, 0), self.time
