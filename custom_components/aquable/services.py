@@ -17,6 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .commands import encoder, generators
 from .const import DEVICE_TYPE_DOSER, DOMAIN, DeviceModelInfo
@@ -249,7 +250,7 @@ async def _execute_on_master_and_slaves(
                 # 0x5A (90) is cmd_id, 0x09 is mode for set_time_command
                 if cmd and cmd[0] == 90 and len(cmd) >= 6 and cmd[5] == 9:
                     # Regenerate with a fresh timestamp but keep original msg_id
-                    fresh_cmd = encoder.create_set_time_command((cmd[3], cmd[4]))
+                    fresh_cmd = encoder.create_set_time_command((cmd[3], cmd[4]), dt_util.now())
                     slave_commands.append(fresh_cmd)
                 else:
                     slave_commands.append(cmd)
@@ -398,15 +399,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             new_options["schedules"] = existing
             hass.config_entries.async_update_entry(coord.entry, options=new_options)
 
-        # 2. Push BLE add/update commands to light hardware
-        start_id = (0, len(commands_to_send))
-        start_id, auto_cmds = generators.generate_light_enable_auto_mode_sequence(start_id)
-        commands_to_send.extend(auto_cmds)
+        # 2. Sync the configured local time, write the schedule, then re-arm auto.
+        # Starting auto before writing a slot can leave the device in manual/off
+        # until the next sunrise; re-enabling auto last prompts a fresh evaluation.
+        msg_id = (0, len(commands_to_send))
+        msg_id = encoder.next_message_id(msg_id)
+        commands_to_send.append(encoder.create_set_time_command(msg_id, dt_util.now()))
 
-        _, add_cmds = generators.generate_light_add_auto_setting_sequence(
-            start_id, sunrise, sunset, brightness, ramp_up_minutes, weekdays=weekdays
+        msg_id, add_cmds = generators.generate_light_add_auto_setting_sequence(
+            msg_id, sunrise, sunset, brightness, ramp_up_minutes, weekdays=weekdays
         )
         commands_to_send.extend(add_cmds)
+        msg_id = encoder.next_message_id(msg_id)
+        commands_to_send.append(encoder.create_switch_to_auto_mode_command(msg_id))
 
         await _execute_on_master_and_slaves(hass, coord, commands_to_send)
 
@@ -462,7 +467,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         coord = _get_coordinator(hass, call.data["device_id"])
         mode = call.data["mode"]
         if mode == "auto":
-            _, commands = generators.generate_light_enable_auto_mode_sequence((0, 0))
+            _, commands = generators.generate_light_enable_auto_mode_sequence((0, 0), dt_util.now())
         elif mode == "off":
             _, commands = generators.generate_light_set_brightness_sequence(
                 (0, 0), {0: 0, 1: 0, 2: 0, 3: 0}
