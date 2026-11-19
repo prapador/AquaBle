@@ -359,18 +359,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 weekday_mask=new_mask,
                 channel_brightness=list(channel_levels),
             )
-            msg_id = encoder.next_message_id((0, 0))
-            commands_to_send.append(encoder.create_set_time_command(msg_id, dt_util.now()))
-            msg_id = encoder.next_message_id(msg_id)
-            commands_to_send.append(encoder.create_reset_scene_settings_command(msg_id))
-            msg_id = encoder.next_message_id(msg_id)
-            commands_to_send.append(encoder.create_switch_to_auto_mode_command(msg_id))
-            msg_id, add_cmds = generators.generate_light_add_auto_setting_sequence(
-                msg_id, sunrise, sunset, brightness, ramp_up_minutes, weekdays=weekdays
+            _, commands_to_send = generators.generate_light_replace_scene_sequence(
+                (0, 0), sunrise, sunset, brightness, ramp_up_minutes, weekdays, dt_util.now()
             )
-            commands_to_send.extend(add_cmds)
-            msg_id = encoder.next_message_id(msg_id)
-            commands_to_send.append(encoder.create_switch_to_auto_mode_command(msg_id))
             await _execute_on_master_and_slaves(hass, coord, commands_to_send)
             if coord.entry:
                 options = dict(coord.entry.options)
