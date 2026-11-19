@@ -78,9 +78,14 @@ class AquaBleLightCard extends LitElement {
       }
       if (deviceId && this._customLoadedFor !== deviceId && this._isTunableWhite) {
         const stored = this._activeSchedulesEntity?.attributes?.custom_curve;
-        this._customPoints = Array.isArray(stored) && stored.length
-          ? stored.map(point => ({time: point.time, levels: {...point.levels}}))
-          : this._defaultCustomPoints();
+        const anchored = new Set();
+        const points = Array.isArray(stored) && stored.length ? stored : this._defaultCustomPoints();
+        this._customPoints = points.map(point => {
+          const anchor = ["00:00", "23:30"].includes(point.time) && !anchored.has(point.time)
+            ? point.time : null;
+          if (anchor) anchored.add(anchor);
+          return {...point, levels: {...point.levels}, anchor};
+        });
         this._customLoadedFor = deviceId;
       }
     }
@@ -293,11 +298,13 @@ class AquaBleLightCard extends LitElement {
   _updateCustomPoint(index, field, value) {
     this._customPoints = this._customPoints.map((point, idx) => {
       if (idx !== index) return point;
-      if (field === "time") return {...point, time: value};
+      if (field === "time") return point.anchor ? point : {...point, time: value};
       const levels = {...point.levels, [field]: value};
       return {...point, levels, kelvin: this._temperature([levels.white, levels.warm_white], point.kelvin)};
     });
-    this._customError = "";
+    const duplicates = this._customPoints.filter(point => point.time === value).length;
+    this._customError = field === "time" && duplicates > 1
+      ? `There are two points at ${value}. Choose a different time before applying.` : "";
   }
 
   _updateCustomMix(index, {kelvin, brightness} = {}) {
@@ -323,15 +330,26 @@ class AquaBleLightCard extends LitElement {
       return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
     }).find(t => !occupied.has(t));
     if (time) {
-      this._customPoints = [...this._customPoints, {
-        time, levels: Object.fromEntries(this._channels.map(({key}) => [key, 0]))
-      }].sort((a, b) => a.time.localeCompare(b.time));
+      const points = [...this._customPoints];
+      const end = points.findIndex(point => point.anchor === "23:30");
+      points.splice(end < 0 ? points.length : end, 0, {
+        time, anchor: null, levels: Object.fromEntries(this._channels.map(({key}) => [key, 0]))
+      });
+      this._customPoints = points;
     }
   }
 
   _removeCustomPoint(index) {
-    if (this._customPoints.length <= 2 || ["00:00", "23:30"].includes(this._customPoints[index]?.time)) return;
+    if (this._customPoints.length <= 2 || this._customPoints[index]?.anchor) return;
     this._customPoints = this._customPoints.filter((_, i) => i !== index);
+  }
+
+  _moveCustomPoint(index, offset) {
+    const to = index + offset;
+    if (to < 0 || to >= this._customPoints.length) return;
+    const points = [...this._customPoints];
+    [points[index], points[to]] = [points[to], points[index]];
+    this._customPoints = points;
   }
 
   async _applyCustomCurve() {
@@ -353,9 +371,9 @@ class AquaBleLightCard extends LitElement {
     try {
       await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_CUSTOM, {
         device_id: this._deviceId,
-        points: points.map(({time, levels}) => ({time, levels})),
+        points: this._customPoints.map(({time, levels}) => ({time, levels})),
       });
-      this._customPoints = points;
+      // Keep the visual order; the backend sends the chronological order to BLE.
     } catch (error) {
       this._customError = error?.message || "Could not send custom curve";
       console.error("Failed to send custom curve:", error);
