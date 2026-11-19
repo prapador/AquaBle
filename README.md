@@ -125,7 +125,11 @@ entity: sensor.chihiros_doser_head_1_dosed_today
 
 ---
 
-## AquaBLE Tiny display and schedules (v4.1.5)
+## AquaBLE Tiny display and schedules (v4.1.6)
+
+**Custom BLE upload (v4.1.6):** The editor shows an unsaved-changes warning until **Apply Custom Curve** is pressed. A successful service call reports a send time; it does not mean the lamp firmware accepted or applied the curve. The Custom transmitter tries GATT write-with-response when supported, logs the frame count and transport mode, and otherwise uses the legacy no-response path. For troubleshooting a failed turn-off, make a new point at a *future* half-hour time and watch the lamp at that boundary. A point placed in the past may not be applied retroactively depending on the device firmware.
+
+
 
 **Editing order (v4.1.5):** The time editor now has move-up/move-down arrows for each block, including fixed 00:00 and 23:30 anchors. These are 24-hour boundary points and cannot be changed or removed, but their visual position is freely adjustable. The graph and device always receive chronological points. Press **Apply Custom Curve** to save your preferred editor block order. Duplicate times are highlighted and must be resolved before applying.
 
