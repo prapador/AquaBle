@@ -332,7 +332,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         channel_levels = _extract_channel_levels(coord.model_info, coord.num_channels, call.data)
         brightness = tuple(channel_levels)
         ramp_up_minutes = call.data["ramp_up_minutes"]
-        weekdays = call.data.get("weekdays")
+        weekdays = (
+            ["everyday"] if coord.model_info and coord.model_info.name == "Z Light TINY"
+            else call.data.get("weekdays")
+        )
 
         commands_to_send: list[bytearray] = []
 
