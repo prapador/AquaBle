@@ -1,5 +1,8 @@
 # AquaBle
 
+> **Personal fork maintained by [prapador](https://github.com/prapador/AquaBle)** · Based on [caleb-venner/AquaBle](https://github.com/caleb-venner/AquaBle). The original project and its authors retain attribution. This fork adds Z Light Tiny warm/cool white controls and an **approximate** 2800–8000 K slider. The colour-temperature value is a calculated channel mix, **not calibrated Kelvin**. See [FORK.md](./FORK.md) for limitations and Marketplace migration notes.
+
+
 **Home Assistant integration for Chihiros aquarium devices (LED lights and dosing pumps) via Bluetooth Low Energy.**
 
 AquaBle is built on a robust, **stateless functional architecture**. Rather than attempting to force autonomous aquarium ecosystems into standard Home Assistant "on/off" switches, AquaBle treats your equipment as "set and forget" configuration targets. You can monitor equipment telemetry via real-time sensors, manage lighting and dosing routines visually via custom Lovelace cards, and push complex schedules directly to the hardware using Home Assistant Automations and Scripts.
