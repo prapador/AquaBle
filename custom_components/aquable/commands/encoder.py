@@ -259,6 +259,29 @@ def create_delete_auto_setting_command(
     )
 
 
+def create_auto_curve_point_command(
+    msg_id: tuple[int, int], channel: int, minutes: int, level: int
+) -> bytearray:
+    """Write one custom-curve keyframe for BleLed devices (30-minute time slots).
+
+    Z Light Tiny uses the BleLed encoding, not the 4-byte SeaLed variant.
+    """
+    if not (0 <= channel <= 7 and 0 <= minutes <= 1439 and minutes % 30 == 0
+            and 0 <= level <= 100):
+        raise ValueError("Invalid custom-curve channel, half-hour time or brightness")
+    return _encode_uart_command(90, 6, msg_id, [channel, minutes // 30, level])
+
+
+def create_switch_to_custom_curve_command(msg_id: tuple[int, int]) -> bytearray:
+    """Select custom curve controller: 0x5A/0x05 [3, 255, 255]."""
+    return _encode_uart_command(90, 5, msg_id, [3, 255, 255])
+
+
+def create_reset_scene_settings_command(msg_id: tuple[int, int]) -> bytearray:
+    """Clear scene schedules, not custom curves: 0x5A/0x05 [40, 255, 255]."""
+    return _encode_uart_command(90, 5, msg_id, [40, 255, 255])
+
+
 def create_reset_auto_settings_command(msg_id: tuple[int, int]) -> bytearray:
     """Return a command to reset auto settings on the device."""
     return _encode_uart_command(90, 5, msg_id, [5, 255, 255])
