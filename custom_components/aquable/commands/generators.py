@@ -172,16 +172,17 @@ def generate_light_delete_auto_setting_sequence(
 
 def generate_light_enable_auto_mode_sequence(
     start_msg_id: tuple[int, int],
+    device_local_time: datetime.datetime | None = None,
 ) -> tuple[tuple[int, int], list[bytearray]]:
-    """Generate sequence to switch light to auto mode and sync time."""
+    """Sync the local clock before enabling autonomous hardware schedules."""
     msg_id = start_msg_id
     commands = []
 
     msg_id = encoder.next_message_id(msg_id)
-    commands.append(encoder.create_switch_to_auto_mode_command(msg_id))
+    commands.append(encoder.create_set_time_command(msg_id, device_local_time))
 
     msg_id = encoder.next_message_id(msg_id)
-    commands.append(encoder.create_set_time_command(msg_id))
+    commands.append(encoder.create_switch_to_auto_mode_command(msg_id))
 
     return msg_id, commands
 
