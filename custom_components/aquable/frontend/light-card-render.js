@@ -394,6 +394,8 @@ function renderCustomTab(card) {
       </div>
       ${points.map(point => {
         const idx = card._customPoints.indexOf(point);
+        const temperature = point.kelvin ?? card._temperature([point.levels.white, point.levels.warm_white]);
+        const brightness = Math.min(100, (point.levels.white || 0) + (point.levels.warm_white || 0));
         return html`
           <div class="custom-point">
             <div class="custom-point-header">
@@ -403,15 +405,30 @@ function renderCustomTab(card) {
                   ?disabled=${point.time === "00:00" || point.time === "23:30"}
                   @change=${e => card._updateCustomPoint(idx, "time", e.target.value)}/>
               </label>
-              <span class="custom-kelvin">~${card._temperature([
-                point.levels.white, point.levels.warm_white
-              ])} K</span>
+              <span class="custom-kelvin">${brightness ? `~${temperature} K · ${brightness}%` : "Off · 0%"}</span>
               <button class="icon-btn delete-btn" title="Remove point"
                 ?disabled=${["00:00", "23:30"].includes(point.time)}
                 @click=${() => card._removeCustomPoint(idx)}>
                 <ha-icon icon="mdi:delete-outline"></ha-icon>
               </button>
             </div>
+            <div class="slider-row">
+              <span class="slider-label">Temperature</span>
+              <ha-slider min="2800" max="8000" step="100" pin
+                .value=${temperature}
+                @change=${e => card._updateCustomMix(idx, {kelvin: Number(e.target.value)})}>
+              </ha-slider>
+              <span class="slider-val">${temperature} K</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Brightness</span>
+              <ha-slider min="0" max="100" step="1" pin
+                .value=${brightness}
+                @change=${e => card._updateCustomMix(idx, {brightness: Number(e.target.value)})}>
+              </ha-slider>
+              <span class="slider-val">${brightness}%</span>
+            </div>
+            <div class="custom-help">Approximate white balance · individual channels</div>
             ${card._channels.map(channel => html`
               <div class="slider-row">
                 <span class="slider-label" style="color:${channel.hex}">${channel.name}</span>
