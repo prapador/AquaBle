@@ -3,12 +3,13 @@
 This is a personal fork of [caleb-venner/AquaBle](https://github.com/caleb-venner/AquaBle).
 Keep the original project's attribution and license. The fork uses the same Home Assistant integration domain, `aquable`.
 
-## Added in v4.1.1
+## Added in v4.1.1 and fixed in v4.1.2
 
 - The `warm_white` parameter is accepted by `aquable.light_set_manual_mode` and `aquable.light_set_auto_schedule`.
 - The Active Schedules sensor exposes ordered `channel_keys`; the custom card presents the correct sliders for each supported model.
 - For the Chihiros Z Light Tiny (cool white / warm white), the card includes an **approximate** 2800–8000 K slider and a combined brightness control for manual and schedule settings.
 - Two-channel SVG ramp curves use Lit's `svg` tag, instead of an HTML template inside SVG.
+- v4.1.2 synchronizes the light's RTC with Home Assistant's configured local timezone and activates Auto after schedule writes. This needs physical verification on the Tiny.
 
 **Caution:** The Kelvin calculation is a *linear mixer between two LED channels*, not a calibrated spectral or CCT conversion. Test low manual intensities first. The final curve fix and persistence of scheduled two-channel commands still need physical verification.
 
