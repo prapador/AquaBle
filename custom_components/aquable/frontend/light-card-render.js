@@ -369,8 +369,9 @@ function renderAddTab(card) {
 
 
 function renderCustomTab(card) {
-  const points = [...card._customPoints].sort((a, b) => a.time.localeCompare(b.time));
-  const pathFor = (key) => points.map((point, index) => {
+  const points = card._customPoints;
+  const chronological = [...points].sort((a, b) => a.time.localeCompare(b.time));
+  const pathFor = (key) => chronological.map((point, index) => {
     const [hour, minute] = point.time.split(":").map(Number);
     const x = plotX(hour * 60 + minute);
     const y = plotY(point.levels[key] || 0);
@@ -383,7 +384,7 @@ function renderCustomTab(card) {
         <ha-icon icon="mdi:chart-line"></ha-icon>
         Custom 24-hour curve · Z Light Tiny
       </div>
-      <p class="custom-help">Separate from Scene Auto. Set brightness for both white channels at each half-hour point; the lamp interpolates between points. Applied directly to the lamp by Bluetooth.</p>
+      <p class="custom-help">Custom curves run independently of Scene Auto. The 00:00 and 23:30 points are fixed daily anchors; other times are editable. Use the arrows to move blocks for easier editing. The graph and lamp still follow chronological order.</p>
       <div class="timeline-container">
         <svg class="curve-svg" viewBox="0 0 360 124" preserveAspectRatio="none">
           ${renderChartAxes()}
@@ -397,21 +398,37 @@ function renderCustomTab(card) {
         const temperature = point.kelvin ?? card._temperature([point.levels.white, point.levels.warm_white]);
         const brightness = Math.min(100, (point.levels.white || 0) + (point.levels.warm_white || 0));
         return html`
-          <div class="custom-point">
+          <div class="custom-point ${points.some((other, otherIndex) => otherIndex !== idx && other.time === point.time) ? 'duplicate' : ''}">
             <div class="custom-point-header">
               <label>Time
                 <input type="time" min="00:00" max="23:30" step="1800"
+                  title="${point.anchor ? 'Fixed daily endpoint' : 'Choose a unique half-hour time'}"
                   .value=${point.time}
-                  ?disabled=${point.time === "00:00" || point.time === "23:30"}
+                  ?disabled=${Boolean(point.anchor)}
                   @change=${e => card._updateCustomPoint(idx, "time", e.target.value)}/>
+                ${point.anchor ? html`<span class="custom-anchor" title="Required start/end point">Fixed</span>` : ''}
               </label>
               <span class="custom-kelvin">${brightness ? `~${temperature} K · ${brightness}%` : "Off · 0%"}</span>
-              <button class="icon-btn delete-btn" title="Remove point"
-                ?disabled=${["00:00", "23:30"].includes(point.time)}
-                @click=${() => card._removeCustomPoint(idx)}>
-                <ha-icon icon="mdi:delete-outline"></ha-icon>
-              </button>
+              <div class="custom-point-actions">
+                <button class="icon-btn" title="Move block up" aria-label="Move block up"
+                  ?disabled=${card._loading || idx === 0}
+                  @click=${() => card._moveCustomPoint(idx, -1)}>
+                  <ha-icon icon="mdi:arrow-up"></ha-icon>
+                </button>
+                <button class="icon-btn" title="Move block down" aria-label="Move block down"
+                  ?disabled=${card._loading || idx === points.length - 1}
+                  @click=${() => card._moveCustomPoint(idx, 1)}>
+                  <ha-icon icon="mdi:arrow-down"></ha-icon>
+                </button>
+                <button class="icon-btn delete-btn" title="Remove point" aria-label="Remove point"
+                  ?disabled=${card._loading || Boolean(point.anchor)}
+                  @click=${() => card._removeCustomPoint(idx)}>
+                  <ha-icon icon="mdi:delete-outline"></ha-icon>
+                </button>
+              </div>
             </div>
+            ${points.some((other, otherIndex) => otherIndex !== idx && other.time === point.time)
+              ? html`<p class="custom-error">Duplicate time: change one of these points.</p>` : ''}
             <div class="slider-row">
               <span class="slider-label">Temperature</span>
               <ha-slider min="2800" max="8000" step="100" pin
@@ -453,7 +470,7 @@ function renderCustomTab(card) {
           <ha-icon icon="mdi:send" slot="icon"></ha-icon>Apply Custom Curve
         </mwc-button>
       </div>
-      <p class="custom-help">Note: Bluetooth writes do not confirm the firmware accepted every point. Check the lamp after applying. Scene Auto remains separate.</p>
+      <p class="custom-help">Use Apply Custom Curve to save this editing order in Home Assistant and send the points in chronological order to the lamp. Bluetooth writes do not confirm firmware acceptance.</p>
     </div>
   `;
 }
