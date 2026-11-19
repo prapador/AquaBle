@@ -66,14 +66,14 @@ export function renderCard(card) {
           class="tab ${card._activeTab === 'schedules' ? 'active' : ''}"
           @click=${() => card._setTab('schedules')}
         >
-          Schedules & Curve
+          ${card._isTunableWhite ? "Auto" : "Schedules & Curve"}
         </div>
-        <div
-          class="tab ${card._activeTab === 'add' ? 'active' : ''}"
-          @click=${() => card._setTab('add')}
-        >
-          ${card._editingIndex !== null ? `Edit Slot #${card._editingIndex + 1}` : 'Add Schedule'}
-        </div>
+        ${!card._isTunableWhite ? html`
+          <div class="tab ${card._activeTab === 'add' ? 'active' : ''}"
+            @click=${() => card._setTab('add')}>
+            ${card._editingIndex !== null ? `Edit Slot #${card._editingIndex + 1}` : "Add Schedule"}
+          </div>
+        ` : ''}
         ${card._isTunableWhite ? html`
           <div class="tab ${card._activeTab === 'custom' ? 'active' : ''}"
             @click=${() => card._setTab('custom')}>Custom Curve</div>
@@ -87,7 +87,7 @@ export function renderCard(card) {
       </div>
 
       ${card._activeTab === 'schedules' ? renderSchedulesTab(card) : ''}
-      ${card._activeTab === 'add' ? renderAddTab(card) : ''}
+      ${card._activeTab === 'add' && !card._isTunableWhite ? renderAddTab(card) : ''}
       ${card._activeTab === 'custom' && card._isTunableWhite ? renderCustomTab(card) : ''}
       ${card._activeTab === 'manual' ? renderManualTab(card) : ''}
     </ha-card>
@@ -138,6 +138,16 @@ function renderSchedulesTab(card) {
         </svg>
       </div>
 
+      ${card._isTunableWhite ? html`
+        <div class="section-title"><ha-icon icon="mdi:calendar-clock"></ha-icon>Auto · One schedule</div>
+        <p class="custom-help">A single sunrise/sunset schedule, as in My Chihiros. Saving replaces previous Scene Auto slots; Custom curves remain untouched.</p>
+        ${schedules.length > 1 ? html`<p class="custom-help">This device has ${schedules.length} legacy scenes. Saving will replace them with one schedule.</p>` : ''}
+        ${renderAddTab(card)}
+        ${card._sceneError ? html`<p class="custom-error">${card._sceneError}</p>` : ''}
+        <div class="button-row"><mwc-button outlined class="danger-btn"
+          @click=${() => card._clearSchedules()}
+          ?disabled=${card._loading || !schedules.length}>Clear Auto Schedule</mwc-button></div>
+      ` : html`
       <div class="section-title">
         <ha-icon icon="mdi:calendar-clock"></ha-icon>
         Configured Schedules (${schedules.length})
@@ -214,18 +224,19 @@ function renderSchedulesTab(card) {
           Clear All Schedules
         </mwc-button>
       </div>
+      `}
     </div>
   `;
 }
 
 function renderAddTab(card) {
-  const isEditing = card._editingIndex !== null;
+  const isEditing = card._editingIndex !== null && !card._isTunableWhite;
 
   return html`
     <div class="section">
       <div class="section-title">
         <ha-icon icon="${isEditing ? 'mdi:calendar-edit' : 'mdi:clock-outline'}"></ha-icon>
-        ${isEditing ? `Edit Schedule (Slot #${card._editingIndex + 1})` : 'Schedule Timing'}
+        ${card._isTunableWhite ? "Daily Auto Schedule" : isEditing ? `Edit Schedule (Slot #${card._editingIndex + 1})` : "Schedule Timing"}
       </div>
       <div class="form-grid">
         <div class="time-input-group">
@@ -284,22 +295,18 @@ function renderAddTab(card) {
         <span class="slider-val">${card._newSchedule.rampMinutes}m</span>
       </div>
 
-      <div class="section-title" style="margin-top: 16px;">
-        <ha-icon icon="mdi:calendar-week"></ha-icon>
-        Active Weekdays
-      </div>
-      <div class="weekday-row">
-        ${WEEKDAYS.map(
-          (d) => html`
-            <div
-              class="weekday-btn ${card._newSchedule.weekdays.includes(d.key) ? 'selected' : ''}"
-              @click=${() => card._toggleWeekday(d.key)}
-            >
-              ${d.label}
-            </div>
-          `
-        )}
-      </div>
+      ${!card._isTunableWhite ? html`
+        <div class="section-title" style="margin-top: 16px;">
+          <ha-icon icon="mdi:calendar-week"></ha-icon>
+          Active Weekdays
+        </div>
+        <div class="weekday-row">
+          ${WEEKDAYS.map(d => html`
+            <div class="weekday-btn ${card._newSchedule.weekdays.includes(d.key) ? 'selected' : ''}"
+              @click=${() => card._toggleWeekday(d.key)}>${d.label}</div>
+          `)}
+        </div>
+      ` : html`<p class="custom-help">Applies every day.</p>`}
 
       <div class="section-title">
         <ha-icon icon="mdi:palette"></ha-icon>
@@ -323,7 +330,10 @@ function renderAddTab(card) {
       )}
 
       <div class="button-row">
-        ${isEditing
+        ${card._isTunableWhite ? html`
+            <mwc-button raised @click=${() => card._saveSchedule()}
+              ?disabled=${card._loading}>Save Auto Schedule</mwc-button>
+          ` : isEditing
           ? html`
               <mwc-button
                 class="danger-btn"
