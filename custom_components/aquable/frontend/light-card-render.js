@@ -1,4 +1,4 @@
-import { html } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+import { html, svg } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 import { WEEKDAYS } from "./constants.js";
 
 /**
@@ -115,7 +115,7 @@ function renderSchedulesTab(card) {
           </g>
 
           <!-- Channel Curves -->
-          ${card._channels.map((channel, idx) => html`
+          ${card._channels.map((channel, idx) => svg`
             <path d="${generateChannelPath(schedules, idx, 360, 110)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
           `)}
 
