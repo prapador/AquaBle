@@ -30,6 +30,7 @@ SERVICE_SET_DOSER_SCHEDULE = "doser_set_daily_dose_sequence"
 SERVICE_DOSER_MANUAL = "doser_manual_dose"
 SERVICE_SET_LIGHT_MANUAL = "light_set_manual_mode"
 SERVICE_SET_LIGHT_AUTO = "light_set_auto_schedule"
+SERVICE_SET_LIGHT_CUSTOM = "light_set_custom_curve"
 SERVICE_ENABLE_LIGHT_AUTO = "light_set_mode"
 SERVICE_CLEAR_LIGHT_SCHEDULES = "light_clear_schedules"
 SERVICE_DELETE_LIGHT_AUTO = "light_delete_auto_schedule"
@@ -84,6 +85,13 @@ LIGHT_AUTO_SCHEMA = vol.Schema(
     }
 )
 
+LIGHT_CUSTOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_id"): cv.string,
+        vol.Required("points"): vol.All(cv.ensure_list, vol.Length(min=2, max=16)),
+    }
+)
+
 LIGHT_DELETE_AUTO_SCHEMA = vol.Schema(
     {
         vol.Required("device_id"): cv.string,
@@ -101,7 +109,7 @@ LIGHT_DELETE_AUTO_SCHEMA = vol.Schema(
 LIGHT_MODE_SCHEMA = vol.Schema(
     {
         vol.Required("device_id"): cv.string,
-        vol.Required("mode"): vol.In(["auto", "manual", "off"]),
+        vol.Required("mode"): vol.In(["auto", "custom", "manual", "off"]),
     }
 )
 
@@ -240,9 +248,13 @@ async def _execute_on_master_and_slaves(
                 continue
 
             # Sync schedules in HA frontend if they exist
+            new_options = dict(slave_coord.entry.options)
             if master_schedules is not None:
-                new_options = dict(slave_coord.entry.options)
                 new_options["schedules"] = master_schedules
+            for key in ("custom_curve", "light_controller_mode"):
+                if key in master_coord.entry.options:
+                    new_options[key] = master_coord.entry.options[key]
+            if new_options != slave_coord.entry.options:
                 hass.config_entries.async_update_entry(slave_coord.entry, options=new_options)
 
             slave_commands = []
@@ -417,6 +429,68 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         await _execute_on_master_and_slaves(hass, coord, commands_to_send)
 
+    async def handle_light_custom_curve(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass, call.data["device_id"])
+        if not coord.model_info or coord.model_info.name != "Z Light TINY":
+            raise HomeAssistantError(
+                "Custom curve editing is currently supported only for Z Light TINY."
+            )
+
+        channels = [
+            name for name, _ in sorted(coord.model_info.colors.items(), key=lambda item: item[1])
+        ]
+        normalized: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for point in call.data["points"]:
+            if not isinstance(point, dict):
+                raise HomeAssistantError("Each custom curve point must be a mapping.")
+            time_text = point.get("time")
+            levels = point.get("levels")
+            if not isinstance(time_text, str) or not isinstance(levels, dict):
+                raise HomeAssistantError("Custom points require time HH:MM and levels.")
+            try:
+                time = datetime.time.fromisoformat(time_text)
+            except ValueError as exc:
+                raise HomeAssistantError(f"Invalid custom point time: {time_text}") from exc
+            minute = 60 * time.hour + time.minute
+            if time.second or time.microsecond or minute % 30 or minute in seen:
+                raise HomeAssistantError("Custom curve times must be unique half-hour slots.")
+            seen.add(minute)
+            if set(levels) != set(channels):
+                raise HomeAssistantError(
+                    f"Expected exactly these light channels: {', '.join(channels)}"
+                )
+            if any(type(levels[key]) is not int or not 0 <= levels[key] <= 100 for key in channels):
+                raise HomeAssistantError("Custom curve brightness must be integer 0–100%.")
+            normalized.append({
+                "time": f"{time.hour:02d}:{time.minute:02d}",
+                "levels": {key: levels[key] for key in channels},
+            })
+
+        normalized.sort(key=lambda point: point["time"])
+        if normalized[0]["time"] != "00:00" or normalized[-1]["time"] != "23:30":
+            raise HomeAssistantError("Custom curves must start at 00:00 and end at 23:30.")
+
+        frames = [
+            (
+                int(p["time"][:2]) * 60 + int(p["time"][3:]),
+                tuple(p["levels"][key] for key in channels),
+            )
+            for p in normalized
+        ]
+        _, commands = generators.generate_light_set_custom_curve_sequence(
+            (0, 0), frames, dt_util.now()
+        )
+        # Only persist after the Bluetooth transaction completes. BLE writes
+        # without response still cannot guarantee that firmware accepted them.
+        await _execute_on_master_and_slaves(hass, coord, commands)
+        if coord.entry:
+            options = dict(coord.entry.options)
+            options["custom_curve"] = normalized
+            options["light_controller_mode"] = "custom"
+            hass.config_entries.async_update_entry(coord.entry, options=options)
+            await coord.async_request_refresh()
+
     async def handle_light_delete_auto_schedule(call: ServiceCall) -> None:
         coord = _get_coordinator(hass, call.data["device_id"])
         schedule_index = call.data.get("schedule_index")
@@ -470,6 +544,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mode = call.data["mode"]
         if mode == "auto":
             _, commands = generators.generate_light_enable_auto_mode_sequence((0, 0), dt_util.now())
+        elif mode == "custom":
+            _, commands = generators.generate_light_enable_custom_curve_sequence((0, 0), dt_util.now())
         elif mode == "off":
             _, commands = generators.generate_light_set_brightness_sequence(
                 (0, 0), {0: 0, 1: 0, 2: 0, 3: 0}
@@ -480,6 +556,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return
 
         await _execute_on_master_and_slaves(hass, coord, commands)
+        if coord.entry and mode in ("auto", "custom"):
+            options = dict(coord.entry.options)
+            options["light_controller_mode"] = mode
+            hass.config_entries.async_update_entry(coord.entry, options=options)
 
     async def handle_light_clear_schedules(call: ServiceCall) -> None:
         coord = _get_coordinator(hass, call.data["device_id"])
@@ -504,6 +584,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIGHT_AUTO, handle_light_auto_schedule, schema=LIGHT_AUTO_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_LIGHT_CUSTOM, handle_light_custom_curve, schema=LIGHT_CUSTOM_SCHEMA
     )
     hass.services.async_register(
         DOMAIN,
