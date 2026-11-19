@@ -316,8 +316,11 @@ export const cardStyles = css`
     color: var(--error-color, #f44336);
     font-size: 0.85rem;
   }
-  .custom-point .slider-label { width: 84px; }
-  .custom-point .slider-val { width: 40px; }
+  .custom-point .slider-label { flex: 0 0 94px; width: 94px; }
+  .custom-point .slider-val { flex: 0 0 64px; width: 64px; white-space: nowrap; }
+  .custom-point .custom-help { margin: 8px 0; }
+  .custom-point .slider-row { gap: 8px; }
+  .timeline-axis text { font-variant-numeric: tabular-nums; }
   /* Weekday Selector */
   .weekday-row {
     display: flex;
