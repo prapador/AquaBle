@@ -399,12 +399,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             new_options["schedules"] = existing
             hass.config_entries.async_update_entry(coord.entry, options=new_options)
 
-        # 2. Sync the configured local time, write the schedule, then re-arm auto.
-        # Starting auto before writing a slot can leave the device in manual/off
-        # until the next sunrise; re-enabling auto last prompts a fresh evaluation.
+        # 2. Keep the existing auto-before-write behavior for compatibility,
+        # but sync the local clock first and re-arm auto after writing a slot.
+        # This also covers a schedule added during an already-active time window.
         msg_id = (0, len(commands_to_send))
-        msg_id = encoder.next_message_id(msg_id)
-        commands_to_send.append(encoder.create_set_time_command(msg_id, dt_util.now()))
+        msg_id, setup_cmds = generators.generate_light_enable_auto_mode_sequence(
+            msg_id, dt_util.now()
+        )
+        commands_to_send.extend(setup_cmds)
 
         msg_id, add_cmds = generators.generate_light_add_auto_setting_sequence(
             msg_id, sunrise, sunset, brightness, ramp_up_minutes, weekdays=weekdays
