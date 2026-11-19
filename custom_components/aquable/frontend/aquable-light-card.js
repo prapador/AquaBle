@@ -382,7 +382,7 @@ class AquaBleLightCard extends LitElement {
         sunset_minute: this._newSchedule.sunsetMinute,
         ramp_up_minutes: this._newSchedule.rampMinutes,
         ...Object.fromEntries(this._channels.map((channel, idx) => [channel.key, this._newSchedule.channels[idx] ?? 0])),
-        weekdays: this._newSchedule.weekdays,
+        weekdays: this._isTunableWhite ? ["everyday"] : this._newSchedule.weekdays,
       };
 
       if (this._editingIndex !== null) {
@@ -390,7 +390,7 @@ class AquaBleLightCard extends LitElement {
       }
 
       await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_AUTO, payload);
-      this._sceneLoadedFor = null;
+      this._sceneLoadedFor = this._deviceId;
       if (this._isTunableWhite) {
         this._editingIndex = 0;
       } else {
@@ -449,6 +449,11 @@ class AquaBleLightCard extends LitElement {
       await this.hass.callService(DOMAIN, SERVICES.CLEAR_LIGHT_SCHEDULES, {
         device_id: deviceId,
       });
+      if (this._isTunableWhite) {
+        this._resetNewSchedule();
+        this._editingIndex = null;
+        this._sceneLoadedFor = this._deviceId;
+      }
     } catch (err) {
       console.error("Failed to clear schedules:", err);
     } finally {
