@@ -21,6 +21,7 @@ class AquaBleLightCard extends LitElement {
       _manualLevels: { type: Object },
       _customPoints: { type: Array },
       _customError: { type: String },
+      _sceneError: { type: String },
       _editingIndex: { type: Number },
     };
   }
@@ -46,6 +47,8 @@ class AquaBleLightCard extends LitElement {
     this._customPoints = [];
     this._customLoadedFor = null;
     this._customError = "";
+    this._sceneError = "";
+    this._sceneLoadedFor = null;
   }
 
   setConfig(config) {
@@ -68,6 +71,11 @@ class AquaBleLightCard extends LitElement {
         this._manualLevelsLoaded = true;
       }
       if (this._editingIndex === null && this._newSchedule.channels.length !== this._channels.length) this._resetNewSchedule();
+      if (deviceId && this._isTunableWhite && this._sceneLoadedFor !== deviceId && this._schedules.length) {
+        this._startEditSchedule(0);
+        this._activeTab = "schedules";
+        this._sceneLoadedFor = deviceId;
+      }
       if (deviceId && this._customLoadedFor !== deviceId && this._isTunableWhite) {
         const stored = this._activeSchedulesEntity?.attributes?.custom_curve;
         this._customPoints = Array.isArray(stored) && stored.length
@@ -154,7 +162,7 @@ class AquaBleLightCard extends LitElement {
   // --- UI Event Handlers ---
 
   _setTab(tab) {
-    if (tab !== "add" && this._editingIndex !== null) {
+    if (!this._isTunableWhite && tab !== "add" && this._editingIndex !== null) {
       this._editingIndex = null;
       this._resetNewSchedule();
     }
@@ -197,7 +205,7 @@ class AquaBleLightCard extends LitElement {
       channels: [...channels],
     };
     this._scheduleKelvin = this._temperature(channels, 5400);
-    this._activeTab = "add";
+    this._activeTab = this._isTunableWhite ? "schedules" : "add";
   }
 
   _cancelEdit() {
@@ -283,11 +291,26 @@ class AquaBleLightCard extends LitElement {
   }
 
   _updateCustomPoint(index, field, value) {
-    this._customPoints = this._customPoints.map((point, idx) => idx === index
-      ? field === "time"
-        ? {...point, time: value}
-        : {...point, levels: {...point.levels, [field]: value}}
-      : point
+    this._customPoints = this._customPoints.map((point, idx) => {
+      if (idx !== index) return point;
+      if (field === "time") return {...point, time: value};
+      const levels = {...point.levels, [field]: value};
+      return {...point, levels, kelvin: this._temperature([levels.white, levels.warm_white], point.kelvin)};
+    });
+    this._customError = "";
+  }
+
+  _updateCustomMix(index, {kelvin, brightness} = {}) {
+    if (!this._isTunableWhite) return;
+    const point = this._customPoints[index];
+    if (!point) return;
+    const {white = 0, warm_white: warm = 0} = point.levels;
+    const temperature = Math.max(2800, Math.min(8000, kelvin ?? point.kelvin ?? this._temperature([white, warm])));
+    const intensity = Math.max(0, Math.min(100, brightness ?? white + warm));
+    const cool = Math.round(intensity * (temperature - 2800) / 5200);
+    this._customPoints = this._customPoints.map((p, idx) => idx === index
+      ? {...p, kelvin: temperature, levels: {...p.levels, white: cool, warm_white: intensity - cool}}
+      : p
     );
     this._customError = "";
   }
@@ -330,7 +353,7 @@ class AquaBleLightCard extends LitElement {
     try {
       await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_CUSTOM, {
         device_id: this._deviceId,
-        points,
+        points: points.map(({time, levels}) => ({time, levels})),
       });
       this._customPoints = points;
     } catch (error) {
@@ -346,6 +369,7 @@ class AquaBleLightCard extends LitElement {
   async _saveSchedule() {
     if (!this.hass) return;
     this._loading = true;
+    this._sceneError = "";
     try {
       const active = this._activeSchedulesEntity;
       const deviceId = this._config?.device_id || active?.entity_id;
@@ -366,10 +390,16 @@ class AquaBleLightCard extends LitElement {
       }
 
       await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_AUTO, payload);
-      this._editingIndex = null;
-      this._resetNewSchedule();
+      this._sceneLoadedFor = null;
+      if (this._isTunableWhite) {
+        this._editingIndex = 0;
+      } else {
+        this._editingIndex = null;
+        this._resetNewSchedule();
+      }
       this._activeTab = "schedules";
     } catch (err) {
+      this._sceneError = err?.message || "Could not save the auto schedule";
       console.error("Failed to push auto schedule:", err);
     } finally {
       this._loading = false;
