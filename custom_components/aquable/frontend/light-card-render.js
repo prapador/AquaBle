@@ -1,47 +1,55 @@
 import { html, svg } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 import { WEEKDAYS } from "./constants.js";
 
-/**
- * Generate SVG path data for a 24-hour channel brightness ramp curve.
- */
-function generateChannelPath(schedules, chIdx, width, height) {
-  if (!schedules || schedules.length === 0) {
-    return `M 0,${height} L ${width},${height}`;
-  }
+// Both charts share the same 0–100% Y scale and 24-hour X scale.
+const PLOT = {left: 36, right: 352, top: 10, bottom: 104};
+const plotX = minutes => PLOT.left + minutes / 1440 * (PLOT.right - PLOT.left);
+const plotY = percent => PLOT.bottom - Math.max(0, Math.min(100, percent)) / 100 * (PLOT.bottom - PLOT.top);
 
-  // 1440 minutes in a day. Map minutes (0-1440) to x (0-width), brightness (0-100) to y (height-0).
+function renderChartAxes() {
+  return svg`
+    <g class="timeline-grid">
+      ${[0, 25, 50, 75, 100].map(percent => svg`
+        <line x1="${PLOT.left}" y1="${plotY(percent)}" x2="${PLOT.right}" y2="${plotY(percent)}" />
+      `)}
+      ${[6, 12, 18].map(hour => svg`
+        <line x1="${plotX(hour * 60)}" y1="${PLOT.top}" x2="${plotX(hour * 60)}" y2="${PLOT.bottom}" />
+      `)}
+    </g>
+    <g class="timeline-axis">
+      ${[0, 25, 50, 75, 100].map(percent => svg`
+        <text x="31" y="${plotY(percent) + 3}" text-anchor="end">${percent}%</text>
+      `)}
+      ${[0, 6, 12, 18, 24].map(hour => svg`
+        <text x="${plotX(hour * 60)}" y="120"
+          text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">
+          ${String(hour).padStart(2, '0')}:00
+        </text>
+      `)}
+    </g>
+  `;
+}
+
+/** Generate a sampled 24-hour ramp at the shared chart coordinates. */
+function generateChannelPath(schedules, chIdx) {
   const points = [];
-  points.push({ x: 0, y: height });
-
-  // Sample every 10 minutes to build smooth curve
   for (let m = 0; m <= 1440; m += 10) {
-    let maxB = 0;
-    for (const sched of schedules) {
-      const partsSunrise = (sched.sunrise || "00:00").split(":").map(Number);
-      const partsSunset = (sched.sunset || "00:00").split(":").map(Number);
-      const sunriseMin = partsSunrise[0] * 60 + partsSunrise[1];
-      const sunsetMin = partsSunset[0] * 60 + partsSunset[1];
+    let peakBrightness = 0;
+    for (const sched of schedules || []) {
+      const [sh, sm] = (sched.sunrise || '00:00').split(':').map(Number);
+      const [eh, em] = (sched.sunset || '00:00').split(':').map(Number);
+      const from = sh * 60 + sm, to = eh * 60 + em;
       const ramp = sched.ramp_up_minutes || 0;
-      const peak = (sched.channels && sched.channels[chIdx]) || (sched.channel_brightness && sched.channel_brightness[chIdx]) || 0;
-
-      if (sunsetMin > sunriseMin && m >= sunriseMin && m <= sunsetMin) {
-        let b = peak;
-        if (ramp > 0 && m < sunriseMin + ramp) {
-          b = peak * ((m - sunriseMin) / ramp);
-        } else if (ramp > 0 && m > sunsetMin - ramp) {
-          b = peak * ((sunsetMin - m) / ramp);
-        }
-        if (b > maxB) maxB = b;
-      }
+      const brightness = (sched.channels || sched.channel_brightness || [])[chIdx] ?? 0;
+      if (to <= from || m < from || m > to) continue;
+      let level = brightness;
+      if (ramp && m < from + ramp) level *= (m - from) / ramp;
+      else if (ramp && m > to - ramp) level *= (to - m) / ramp;
+      peakBrightness = Math.max(peakBrightness, level);
     }
-    const x = (m / 1440) * width;
-    const y = height - (maxB / 100) * (height - 10);
-    points.push({ x, y });
+    points.push(`${points.length ? 'L' : 'M'} ${plotX(m).toFixed(1)},${plotY(peakBrightness).toFixed(1)}`);
   }
-
-  points.push({ x: width, y: height });
-
-  return points.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x.toFixed(1)},${p.y.toFixed(1)}`, "");
+  return points.join(' ');
 }
 
 export function renderCard(card) {
@@ -98,7 +106,7 @@ function renderSchedulesTab(card) {
   const schedules = card._schedules;
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const currentX = (currentMinutes / 1440) * 360;
+  const currentX = plotX(currentMinutes);
 
   return html`
     <div class="section">
@@ -107,34 +115,17 @@ function renderSchedulesTab(card) {
         24-Hour Ramp Profile
       </div>
       <div class="timeline-container">
-        <svg class="curve-svg" viewBox="0 0 360 120" preserveAspectRatio="none">
-          <!-- Grid lines -->
-          <g class="timeline-grid">
-            <line x1="0" y1="30" x2="360" y2="30" />
-            <line x1="0" y1="60" x2="360" y2="60" />
-            <line x1="0" y1="90" x2="360" y2="90" />
-            <!-- Hour markers (every 6h) -->
-            <line x1="90" y1="0" x2="90" y2="120" />
-            <line x1="180" y1="0" x2="180" y2="120" />
-            <line x1="270" y1="0" x2="270" y2="120" />
-          </g>
+        <svg class="curve-svg" viewBox="0 0 360 124" preserveAspectRatio="none">
+          ${renderChartAxes()}
 
           <!-- Channel Curves -->
           ${card._channels.map((channel, idx) => svg`
-            <path d="${generateChannelPath(schedules, idx, 360, 110)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
+            <path d="${generateChannelPath(schedules, idx)}" fill="none" stroke="${channel.hex}" stroke-width="2" />
           `)}
 
           <!-- Current Time Indicator -->
-          <line class="time-marker-line" x1="${currentX}" y1="0" x2="${currentX}" y2="110" />
+          <line class="time-marker-line" x1="${currentX}" y1="${PLOT.top}" x2="${currentX}" y2="${PLOT.bottom}" />
 
-          <!-- Axis Labels -->
-          <g class="timeline-axis">
-            <text x="5" y="118">00:00</text>
-            <text x="85" y="118">06:00</text>
-            <text x="175" y="118">12:00</text>
-            <text x="265" y="118">18:00</text>
-            <text x="330" y="118">24:00</text>
-          </g>
         </svg>
       </div>
 
@@ -381,8 +372,8 @@ function renderCustomTab(card) {
   const points = [...card._customPoints].sort((a, b) => a.time.localeCompare(b.time));
   const pathFor = (key) => points.map((point, index) => {
     const [hour, minute] = point.time.split(":").map(Number);
-    const x = (hour * 60 + minute) / 1440 * 360;
-    const y = 105 - (point.levels[key] || 0) * 0.95;
+    const x = plotX(hour * 60 + minute);
+    const y = plotY(point.levels[key] || 0);
     return `${index ? "L" : "M"} ${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
 
@@ -394,25 +385,11 @@ function renderCustomTab(card) {
       </div>
       <p class="custom-help">Separate from Scene Auto. Set brightness for both white channels at each half-hour point; the lamp interpolates between points. Applied directly to the lamp by Bluetooth.</p>
       <div class="timeline-container">
-        <svg class="curve-svg" viewBox="0 0 360 120" preserveAspectRatio="none">
-          <g class="timeline-grid">
-            <line x1="0" y1="30" x2="360" y2="30" />
-            <line x1="0" y1="60" x2="360" y2="60" />
-            <line x1="0" y1="90" x2="360" y2="90" />
-            <line x1="90" y1="0" x2="90" y2="105" />
-            <line x1="180" y1="0" x2="180" y2="105" />
-            <line x1="270" y1="0" x2="270" y2="105" />
-          </g>
+        <svg class="curve-svg" viewBox="0 0 360 124" preserveAspectRatio="none">
+          ${renderChartAxes()}
           ${card._channels.map(channel => svg`
             <path d="${pathFor(channel.key)}" stroke="${channel.hex}" stroke-width="2.5" fill="none"/>
           `)}
-          <g class="timeline-axis">
-            <text x="2" y="118">00:00</text>
-            <text x="85" y="118">06:00</text>
-            <text x="175" y="118">12:00</text>
-            <text x="265" y="118">18:00</text>
-            <text x="329" y="118">24:00</text>
-          </g>
         </svg>
       </div>
       ${points.map(point => {
