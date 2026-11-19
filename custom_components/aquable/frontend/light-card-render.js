@@ -57,7 +57,7 @@ export function renderCard(card) {
           <span>${card._deviceName || "AquaBle Light"}</span>
         </div>
         <div class="sync-badge ${syncStatus === 'synced' ? 'synced' : 'unavailable'}">
-          ${syncStatus === "synced" ? `Synced ${deviceTime ? `(${deviceTime})` : ""}` : "Offline / Unsynced"}
+          ${syncStatus === "synced" ? `Clock reported ${deviceTime || ""}` : "Clock unavailable"}
         </div>
       </div>
 
