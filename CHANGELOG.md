@@ -1,5 +1,16 @@
 # Changelog
 
+## [v4.1.6] — 2026-11-19 — prapador fork (experimental Custom diagnostics)
+
+- Custom Curve uploads now prefer **GATT write-with-response** whenever the Tiny's transmit characteristic supports it, matching the transport used by My Chihiros. Other operations (manual/scene/doser) continue using their existing transport.
+- When no acknowledged writes are supported, use the existing no-response transport and log a warning; reject oversized unacknowledged frames rather than silently treating them as saved.
+- Improved Home Assistant logs: show frame count, whether GATT write responses were available, and explicitly state that successful transport does **not** verify execution by the lamp firmware.
+- Custom Curve card now distinguishes **unsent edits**, **loaded Home Assistant settings**, and the **last successful send time**. Updating a slider or a time never silently uploads the curve.
+- Does not alter the existing Custom Curve controller commands, curve timing/interpolation or channel mapping, which require physical testing before further changes.
+
+**Diagnostic:** A curve changed after its scheduled switch-off time might not be reevaluated immediately by the lamp firmware. To test, program a future half-hour switch-off point, apply the curve, and observe the actual lamp at that time.
+
+
 ## [v4.1.5] — 2026-11-19 — prapador fork
 
 - Tiny Custom Curve: **move editing blocks up/down** with accessible arrow controls. Their visual order is independent of the chronologically sorted curve graph and Bluetooth commands.
