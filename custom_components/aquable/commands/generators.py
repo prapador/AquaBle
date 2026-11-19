@@ -267,4 +267,4 @@ def generate_light_clear_schedules_sequence(
 ) -> tuple[tuple[int, int], list[bytearray]]:
     """Generate sequence to clear all auto schedules."""
     msg_id = encoder.next_message_id(start_msg_id)
-    return msg_id, [encoder.create_reset_auto_settings_command(msg_id)]
+    return msg_id, [encoder.create_reset_scene_settings_command(msg_id)]
