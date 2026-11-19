@@ -1,5 +1,19 @@
 # Changelog
 
+## [v4.1.3] — 2026-11-19 — prapador fork (experimental)
+
+**Z Light Tiny Custom Curve controller**, separate from the existing Scene Auto controller.
+
+- New **Custom Curve** Lovelace tab for Tiny with a 24-hour curve preview, per-channel white/warm-white levels and 30-minute keyframe times.
+- New `aquable.light_set_custom_curve` action, accepting 2–16 `{time: HH:MM, levels: {white, warm_white}}` points.
+- BLE sequence: local clock sync → custom reset (`0x5A/0x05 [5,FF,FF]`) → custom enable (`[3,FF,FF]`) → per-channel custom keyframe writes (`0x5A/0x06`).
+- Separate Custom and Scene Auto buttons. Correct scene schedule deletion reset (`[40,FF,FF]`), rather than accidentally clearing Custom curves.
+- Preserve 90% intensity bytes in Custom curve writes and store submitted curve data for dashboard editing.
+- BLE encoding regressions added, with CI compiling the integration and running protocol unit tests.
+
+**Important:** Physical Tiny compatibility is not confirmed; Custom curve writes use BLE writes without acknowledgment. Test at low intensity and confirm the light switches on within an active interval. The green SYNCED badge checks device time, not actual curve activation.
+
+
 ## [v4.1.2] — 2026-11-19 — prapador fork
 
 **Fix: automatic light schedules may stay off while manual brightness works.**

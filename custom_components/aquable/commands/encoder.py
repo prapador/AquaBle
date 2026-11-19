@@ -31,12 +31,13 @@ def _encode_timestamp(ts: datetime.datetime) -> list[int]:
 
 
 def _encode_uart_command(
-    cmd_id: int, mode: int, msg_id: tuple[int, int], params: Iterable[int]
+    cmd_id: int, mode: int, msg_id: tuple[int, int], params: Iterable[int],
+    *, preserve_params: bool = False,
 ) -> bytearray:
     """Return a UART frame compatible device protocols."""
     msg_hi, msg_lo = msg_id
     payload = list(params)
-    sanitized = [(value if value != 0x5A else 0x59) for value in payload]
+    sanitized = payload if preserve_params else [(value if value != 0x5A else 0x59) for value in payload]
 
     command = bytearray([cmd_id, 0x01, len(sanitized) + 5, msg_hi, msg_lo, mode])
     command.extend(sanitized)
@@ -45,7 +46,7 @@ def _encode_uart_command(
     if verification_byte == 0x5A:
         # bump the message id using the canonical helper and retry
         new_msg_id = next_message_id(msg_id)
-        return _encode_uart_command(cmd_id, mode, new_msg_id, params)
+        return _encode_uart_command(cmd_id, mode, new_msg_id, params, preserve_params=preserve_params)
 
     command.append(verification_byte)
     return command
@@ -257,6 +258,31 @@ def create_delete_auto_setting_command(
     return create_add_auto_setting_command(
         msg_id, sunrise, sunset, (255, 255, 255, 255), ramp_up_minutes, weekdays
     )
+
+
+def create_auto_curve_point_command(
+    msg_id: tuple[int, int], channel: int, minutes: int, level: int
+) -> bytearray:
+    """Write one custom-curve keyframe for BleLed devices (30-minute time slots).
+
+    Z Light Tiny uses the BleLed encoding, not the 4-byte SeaLed variant.
+    """
+    if not (0 <= channel <= 7 and 0 <= minutes <= 1439 and minutes % 30 == 0
+            and 0 <= level <= 100):
+        raise ValueError("Invalid custom-curve channel, half-hour time or brightness")
+    return _encode_uart_command(
+        90, 6, msg_id, [channel, minutes // 30, level], preserve_params=True
+    )
+
+
+def create_switch_to_custom_curve_command(msg_id: tuple[int, int]) -> bytearray:
+    """Select custom curve controller: 0x5A/0x05 [3, 255, 255]."""
+    return _encode_uart_command(90, 5, msg_id, [3, 255, 255])
+
+
+def create_reset_scene_settings_command(msg_id: tuple[int, int]) -> bytearray:
+    """Clear scene schedules, not custom curves: 0x5A/0x05 [40, 255, 255]."""
+    return _encode_uart_command(90, 5, msg_id, [40, 255, 255])
 
 
 def create_reset_auto_settings_command(msg_id: tuple[int, int]) -> bytearray:

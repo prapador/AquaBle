@@ -43,12 +43,15 @@ export const cardStyles = css`
 
   .tabs {
     display: flex;
+    overflow-x: auto;
     border-bottom: 1px solid var(--divider-color, #e0e0e0);
     margin-bottom: 16px;
   }
 
   .tab {
-    padding: 8px 16px;
+    padding: 8px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
     cursor: pointer;
     font-weight: 500;
     color: var(--secondary-text-color);
@@ -277,6 +280,44 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
   }
 
+  .custom-point {
+    margin: 10px 0;
+    padding: 12px;
+    border: 1px solid var(--divider-color, #555);
+    border-radius: 8px;
+    background: var(--secondary-background-color, transparent);
+  }
+  .custom-point-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  .custom-point-header label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+  .custom-point-header input {
+    font: inherit;
+    color: var(--primary-text-color);
+    background: var(--card-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    padding: 5px;
+  }
+  .custom-kelvin, .custom-help {
+    color: var(--secondary-text-color);
+    font-size: 0.8rem;
+  }
+  .custom-error {
+    color: var(--error-color, #f44336);
+    font-size: 0.85rem;
+  }
+  .custom-point .slider-label { width: 84px; }
+  .custom-point .slider-val { width: 40px; }
   /* Weekday Selector */
   .weekday-row {
     display: flex;

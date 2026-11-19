@@ -125,6 +125,35 @@ entity: sensor.chihiros_doser_head_1_dosed_today
 
 ---
 
+## Chihiros Z Light Tiny — Custom Curves (fork)
+
+The custom dashboard card has two *different* automatic controllers:
+
+- **Scene Auto** uses sunrise/sunset scenes sent with BLE `0xA5/0x19` (not guaranteed to work on all Tiny firmware versions).
+- **Custom Curve** uses `0x5A/0x06` keyframes and enables the custom controller with BLE `0x5A/0x05 [3,255,255]`.
+
+Open **Custom Curve** in the light dashboard card, modify points at exact half-hour intervals between **00:00** and **23:30**, set cold/warm channel intensity, and press **Apply Custom Curve**. The first and last points must be 00:00 and 23:30. Save and then confirm the lamp really follows the curve. **Custom Mode** in Manual Control selects the already-programmed custom controller; it does not re-send any points.
+
+You can also call `aquable.light_set_custom_curve` via Home Assistant actions:
+
+```yaml
+action: aquable.light_set_custom_curve
+data:
+  device_id: YOUR_TINY_DEVICE_ID
+  points:
+    - time: "00:00"
+      levels: {white: 0, warm_white: 0}
+    - time: "12:00"
+      levels: {white: 0, warm_white: 35}
+    - time: "20:00"
+      levels: {white: 0, warm_white: 35}
+    - time: "23:30"
+      levels: {white: 0, warm_white: 0}
+```
+
+The Tiny uses a 30-minute resolution for Custom points. Existing scene schedules remain visible in the other tab. Switching the controller does not convert one format into the other, and **Clear All Schedules** now resets only scenes, not Custom curves. The service stores the last submitted Custom points in the AquaBLE config entry, but **Bluetooth success does not prove firmware execution**. Treat the 24-hour graph as a rendering of saved user settings, not verified device state.
+
+
 ## Installation
 
 ### Via HACS (Recommended)

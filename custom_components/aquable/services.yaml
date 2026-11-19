@@ -301,9 +301,43 @@ light_set_auto_schedule:
               value: sunday
           multiple: true
 
+light_set_custom_curve:
+  name: Set custom light curve
+  description: >-
+    Replace the 24-hour Custom curve on a Z Light TINY. Each point needs a
+    half-hour time (00:00–23:30) and white/warm_white levels (0–100).
+    The first point must be 00:00 and the last 23:30.
+  fields:
+    device_id:
+      name: Device
+      required: true
+      selector:
+        device:
+          integration: aquable
+          entity:
+            domain: sensor
+    points:
+      name: Curve points
+      description: >-
+        List of {time: "HH:MM", levels: {white: 0-100, warm_white: 0-100}}.
+        Between 2 and 16 points; half-hour boundaries only.
+      required: true
+      example:
+        - time: "00:00"
+          levels: {white: 0, warm_white: 0}
+        - time: "12:00"
+          levels: {white: 0, warm_white: 35}
+        - time: "20:00"
+          levels: {white: 0, warm_white: 35}
+        - time: "23:30"
+          levels: {white: 0, warm_white: 0}
+      selector:
+        object:
+
+
 light_set_mode:
   name: Set light mode
-  description: Switch light between manual, auto, or off modes
+  description: Switch light between scene auto, custom curves, manual, or off modes
   fields:
     device_id:
       name: Device
@@ -325,6 +359,8 @@ light_set_mode:
               value: manual
             - label: Auto
               value: auto
+            - label: Custom curves
+              value: custom
             - label: "Off"
               value: "off"
 
