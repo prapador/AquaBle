@@ -1,5 +1,14 @@
 # Changelog
 
+## [v4.1.5] — 2026-11-19 — prapador fork
+
+- Tiny Custom Curve: **move editing blocks up/down** with accessible arrow controls. Their visual order is independent of the chronologically sorted curve graph and Bluetooth commands.
+- Preserve the editor's chosen block order in Home Assistant config entries when pressing **Apply Custom Curve**, including synchronized slave devices.
+- Mark **00:00 and 23:30 as fixed daily anchor points**. These required endpoints cannot be edited or removed, but can be moved visually.
+- Fix duplicate-time editing: only the first actual anchor is locked; a second accidentally duplicated `23:30` remains editable/removable. Duplicate time blocks are highlighted and rejected before sending to the lamp.
+- No changes to the working Tiny Custom Curve BLE command format.
+
+
 ## [v4.1.4] — 2026-11-19 — prapador fork
 
 - **Tiny Custom Curve UX:** Every control point now shows approximate color temperature (2800–8000 K), combined brightness and individual cool/warm white channel levels. Values update together when Kelvin or brightness changes; only physical channel levels are sent to the lamp.

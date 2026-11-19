@@ -507,16 +507,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "levels": {key: levels[key] for key in channels},
             })
 
-        normalized.sort(key=lambda point: point["time"])
-        if normalized[0]["time"] != "00:00" or normalized[-1]["time"] != "23:30":
+        chronological = sorted(normalized, key=lambda point: point["time"])
+        if chronological[0]["time"] != "00:00" or chronological[-1]["time"] != "23:30":
             raise HomeAssistantError("Custom curves must start at 00:00 and end at 23:30.")
 
+        # Wire points must be chronological; preserve the editor order in HA.
         frames = [
             (
                 int(p["time"][:2]) * 60 + int(p["time"][3:]),
                 tuple(p["levels"][key] for key in channels),
             )
-            for p in normalized
+            for p in chronological
         ]
         _, commands = generators.generate_light_set_custom_curve_sequence(
             (0, 0), frames, dt_util.now()

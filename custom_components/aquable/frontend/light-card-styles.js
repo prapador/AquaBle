@@ -300,6 +300,23 @@ export const cardStyles = css`
     gap: 8px;
     font-size: 0.85rem;
   }
+  .custom-point-header { flex-wrap: wrap; }
+  .custom-point-actions { display: flex; align-items: center; gap: 3px; }
+  .custom-point-actions .icon-btn {
+    min-width: 34px;
+    min-height: 34px;
+    justify-content: center;
+    border-radius: 6px;
+  }
+  .custom-point-actions .icon-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .custom-point.duplicate { border-color: var(--error-color, #f44336); }
+  .custom-anchor {
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    font-size: 0.72rem;
+  }
   .custom-point-header input {
     font: inherit;
     color: var(--primary-text-color);

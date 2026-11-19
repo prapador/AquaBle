@@ -20,5 +20,7 @@ jobs:
           for script in custom_components/aquable/frontend/*.js; do
             node --input-type=module --check < "$script"
           done
+      - name: Check Custom Curve editor behavior
+        run: node tests/test_custom_card.mjs
       - name: Run protocol regression tests
         run: python -m unittest discover -s tests -v
