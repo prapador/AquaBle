@@ -224,6 +224,30 @@ class AquaBleLightCard extends LitElement {
     };
   }
 
+  _temperature(levels, fallback = 5400) {
+    const total = (levels[0] || 0) + (levels[1] || 0);
+    return total ? Math.round(2800 + 5200 * levels[0] / total) : fallback;
+  }
+
+  _setWhiteMix(mode, { kelvin, brightness } = {}) {
+    if (!this._isTunableWhite) return;
+    const manual = mode === "manual";
+    const levels = manual ? this._manualLevels : this._newSchedule.channels;
+    const fallback = manual ? this._manualKelvin : this._scheduleKelvin;
+    const temperature = Math.max(2800, Math.min(8000, kelvin ?? this._temperature(levels, fallback)));
+    const intensity = Math.max(0, Math.min(100, brightness ?? ((levels[0] || 0) + (levels[1] || 0))));
+    const cool = Math.round(intensity * (temperature - 2800) / 5200);
+    const updated = [cool, Math.round(intensity - cool)];
+    if (manual) {
+      this._manualKelvin = temperature;
+      this._manualLevels = updated;
+      if (this._deviceId) localStorage.setItem(`aquable_manual_${this._deviceId}`, JSON.stringify(updated));
+    } else {
+      this._scheduleKelvin = temperature;
+      this._newSchedule = { ...this._newSchedule, channels: updated };
+    }
+  }
+
   _updateManualLevel(index, value) {
     const updated = [...this._manualLevels];
     updated[index] = value;
