@@ -1,5 +1,17 @@
 # Changelog
 
+## [v4.1.2] — 2026-11-19 — prapador fork
+
+**Fix: automatic light schedules may stay off while manual brightness works.**
+
+- Use Home Assistant's configured local time when syncing light clocks, rather than naive system `datetime.now()` (which can be UTC on HA OS).
+- When switching to Auto, synchronize the device clock **before** re-enabling the scheduler.
+- After adding or editing a hardware schedule, send commands in the order **set local time → write schedule → re-enable Auto**, so the device can reevaluate the active time window.
+- Use the local timezone also when regenerating time commands for synchronized secondary lights.
+- Include regression tests for clock frames, auto-mode order and the Tiny warm-white schedule payload.
+
+**Hardware validation pending:** This release addresses two plausible causes found in source review. Device firmware behavior must still be verified with a Chihiros Tiny. Back up your Home Assistant configuration before updating.
+
 ## [v4.1.1] — 2026-11-19 — prapador fork
 
 **Chihiros Z Light Tiny two-channel support (fork-only release candidate).**
