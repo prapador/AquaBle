@@ -428,6 +428,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         commands_to_send.append(encoder.create_switch_to_auto_mode_command(msg_id))
 
         await _execute_on_master_and_slaves(hass, coord, commands_to_send)
+        if coord.entry:
+            options = dict(coord.entry.options)
+            options["light_controller_mode"] = "auto"
+            hass.config_entries.async_update_entry(coord.entry, options=options)
 
     async def handle_light_custom_curve(call: ServiceCall) -> None:
         coord = _get_coordinator(hass, call.data["device_id"])
@@ -490,6 +494,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             options["light_controller_mode"] = "custom"
             hass.config_entries.async_update_entry(coord.entry, options=options)
             await coord.async_request_refresh()
+            for slave_id in coord.entry.options.get("sync_devices", []):
+                try:
+                    slave = _get_coordinator(hass, slave_id)
+                    if slave.entry:
+                        slave_options = dict(slave.entry.options)
+                        slave_options["custom_curve"] = normalized
+                        slave_options["light_controller_mode"] = "custom"
+                        hass.config_entries.async_update_entry(slave.entry, options=slave_options)
+                        await slave.async_request_refresh()
+                except Exception as exc:
+                    _LOGGER.warning("Could not persist custom curve on slave %s: %s", slave_id, exc)
 
     async def handle_light_delete_auto_schedule(call: ServiceCall) -> None:
         coord = _get_coordinator(hass, call.data["device_id"])
@@ -545,7 +560,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         if mode == "auto":
             _, commands = generators.generate_light_enable_auto_mode_sequence((0, 0), dt_util.now())
         elif mode == "custom":
-            _, commands = generators.generate_light_enable_custom_curve_sequence((0, 0), dt_util.now())
+            if not coord.model_info or coord.model_info.name != "Z Light TINY":
+                raise HomeAssistantError("Custom controller is supported only for Z Light TINY.")
+            _, commands = generators.generate_light_enable_custom_curve_sequence(
+                (0, 0), dt_util.now()
+            )
         elif mode == "off":
             _, commands = generators.generate_light_set_brightness_sequence(
                 (0, 0), {0: 0, 1: 0, 2: 0, 3: 0}
