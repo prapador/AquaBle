@@ -74,6 +74,10 @@ export function renderCard(card) {
         >
           ${card._editingIndex !== null ? `Edit Slot #${card._editingIndex + 1}` : 'Add Schedule'}
         </div>
+        ${card._isTunableWhite ? html`
+          <div class="tab ${card._activeTab === 'custom' ? 'active' : ''}"
+            @click=${() => card._setTab('custom')}>Custom Curve</div>
+        ` : ''}
         <div
           class="tab ${card._activeTab === 'manual' ? 'active' : ''}"
           @click=${() => card._setTab('manual')}
@@ -84,6 +88,7 @@ export function renderCard(card) {
 
       ${card._activeTab === 'schedules' ? renderSchedulesTab(card) : ''}
       ${card._activeTab === 'add' ? renderAddTab(card) : ''}
+      ${card._activeTab === 'custom' && card._isTunableWhite ? renderCustomTab(card) : ''}
       ${card._activeTab === 'manual' ? renderManualTab(card) : ''}
     </ha-card>
   `;
@@ -361,6 +366,94 @@ function renderAddTab(card) {
   `;
 }
 
+
+function renderCustomTab(card) {
+  const points = [...card._customPoints].sort((a, b) => a.time.localeCompare(b.time));
+  const pathFor = (key) => points.map((point, index) => {
+    const [hour, minute] = point.time.split(":").map(Number);
+    const x = (hour * 60 + minute) / 1440 * 360;
+    const y = 105 - (point.levels[key] || 0) * 0.95;
+    return `${index ? "L" : "M"} ${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  return html`
+    <div class="section">
+      <div class="section-title">
+        <ha-icon icon="mdi:chart-line"></ha-icon>
+        Custom 24-hour curve · Z Light Tiny
+      </div>
+      <p class="custom-help">Separate from Scene Auto. Set brightness for both white channels at each half-hour point; the lamp interpolates between points. Applied directly to the lamp by Bluetooth.</p>
+      <div class="timeline-container">
+        <svg class="curve-svg" viewBox="0 0 360 120" preserveAspectRatio="none">
+          <g class="timeline-grid">
+            <line x1="0" y1="30" x2="360" y2="30" />
+            <line x1="0" y1="60" x2="360" y2="60" />
+            <line x1="0" y1="90" x2="360" y2="90" />
+            <line x1="90" y1="0" x2="90" y2="105" />
+            <line x1="180" y1="0" x2="180" y2="105" />
+            <line x1="270" y1="0" x2="270" y2="105" />
+          </g>
+          ${card._channels.map(channel => svg`
+            <path d="${pathFor(channel.key)}" stroke="${channel.hex}" stroke-width="2.5" fill="none"/>
+          `)}
+          <g class="timeline-axis">
+            <text x="2" y="118">00:00</text>
+            <text x="85" y="118">06:00</text>
+            <text x="175" y="118">12:00</text>
+            <text x="265" y="118">18:00</text>
+            <text x="329" y="118">24:00</text>
+          </g>
+        </svg>
+      </div>
+      ${points.map(point => {
+        const idx = card._customPoints.indexOf(point);
+        return html`
+          <div class="custom-point">
+            <div class="custom-point-header">
+              <label>Time
+                <input type="time" min="00:00" max="23:30" step="1800"
+                  .value=${point.time}
+                  ?disabled=${point.time === "00:00" || point.time === "23:30"}
+                  @change=${e => card._updateCustomPoint(idx, "time", e.target.value)}/>
+              </label>
+              <span class="custom-kelvin">~${card._temperature([
+                point.levels.white, point.levels.warm_white
+              ])} K</span>
+              <button class="icon-btn delete-btn" title="Remove point"
+                ?disabled=${["00:00", "23:30"].includes(point.time)}
+                @click=${() => card._removeCustomPoint(idx)}>
+                <ha-icon icon="mdi:delete-outline"></ha-icon>
+              </button>
+            </div>
+            ${card._channels.map(channel => html`
+              <div class="slider-row">
+                <span class="slider-label" style="color:${channel.hex}">${channel.name}</span>
+                <ha-slider min="0" max="100" step="1" pin
+                  .value=${point.levels[channel.key] ?? 0}
+                  @change=${e => card._updateCustomPoint(idx, channel.key, Number(e.target.value))}
+                ></ha-slider>
+                <span class="slider-val">${point.levels[channel.key] ?? 0}%</span>
+              </div>
+            `)}
+          </div>
+        `;
+      })}
+      ${card._customError ? html`<p class="custom-error">${card._customError}</p>` : ''}
+      <div class="button-row">
+        <mwc-button outlined @click=${() => card._addCustomPoint()}
+          ?disabled=${card._loading || card._customPoints.length >= 16}>
+          <ha-icon icon="mdi:plus" slot="icon"></ha-icon>Add Point
+        </mwc-button>
+        <mwc-button raised @click=${() => card._applyCustomCurve()}
+          ?disabled=${card._loading || !card._customPoints.length}>
+          <ha-icon icon="mdi:send" slot="icon"></ha-icon>Apply Custom Curve
+        </mwc-button>
+      </div>
+      <p class="custom-help">Note: Bluetooth writes do not confirm the firmware accepted every point. Check the lamp after applying. Scene Auto remains separate.</p>
+    </div>
+  `;
+}
+
 function renderManualTab(card) {
   return html`
     <div class="section">
@@ -375,8 +468,15 @@ function renderManualTab(card) {
           ?disabled=${card._loading}
         >
           <ha-icon icon="mdi:autorenew" slot="icon"></ha-icon>
-          Auto Mode
+          Scene Auto
         </mwc-button>
+        ${card._isTunableWhite ? html`
+          <mwc-button outlined @click=${() => card._setLightMode("custom")}
+            ?disabled=${card._loading}>
+            <ha-icon icon="mdi:chart-line" slot="icon"></ha-icon>
+            Custom Mode
+          </mwc-button>
+        ` : ''}
         <mwc-button
           outlined
           @click=${() => card._setLightMode('off')}
