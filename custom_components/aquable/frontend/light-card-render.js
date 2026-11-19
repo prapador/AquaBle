@@ -459,6 +459,15 @@ function renderCustomTab(card) {
           </div>
         `;
       })}
+      <p class="custom-upload-status ${card._customUnsaved ? 'unsaved' : ''}">
+        ${card._loading
+          ? "Sending curve points to the lamp…"
+          : card._customUnsaved
+            ? "Unsaved changes · click Apply Custom Curve to send to the lamp"
+            : card._customLastUploadAt
+              ? `Sent at ${card._customLastUploadAt} · firmware application not verified`
+              : "Loaded from Home Assistant · lamp configuration not verified"}
+      </p>
       ${card._customError ? html`<p class="custom-error">${card._customError}</p>` : ''}
       <div class="button-row">
         <mwc-button outlined @click=${() => card._addCustomPoint()}
