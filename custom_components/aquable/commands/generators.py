@@ -149,6 +149,45 @@ def generate_light_add_auto_setting_sequence(
     return msg_id, [cmd]
 
 
+def generate_light_set_custom_curve_sequence(
+    start_msg_id: tuple[int, int],
+    points: Sequence[tuple[int, Sequence[int]]],
+    device_local_time: datetime.datetime,
+) -> tuple[tuple[int, int], list[bytearray]]:
+    """Replace a BleLed custom curve: clock, custom reset, custom mode, points.
+
+    The caller validates time slots, available channels and monotonic ordering.
+    A single transaction sends one frame per channel and half-hour keyframe.
+    """
+    msg_id = start_msg_id
+    commands: list[bytearray] = []
+    for factory in (
+        lambda mid: encoder.create_set_time_command(mid, device_local_time),
+        encoder.create_reset_auto_settings_command,
+        encoder.create_switch_to_custom_curve_command,
+    ):
+        msg_id = encoder.next_message_id(msg_id)
+        commands.append(factory(msg_id))
+
+    for minutes, levels in points:
+        for channel, level in enumerate(levels):
+            msg_id = encoder.next_message_id(msg_id)
+            commands.append(
+                encoder.create_auto_curve_point_command(msg_id, channel, minutes, level)
+            )
+    return msg_id, commands
+
+
+def generate_light_enable_custom_curve_sequence(
+    start_msg_id: tuple[int, int], device_local_time: datetime.datetime
+) -> tuple[tuple[int, int], list[bytearray]]:
+    """Resume custom curves without clearing their previously written points."""
+    msg_id = encoder.next_message_id(start_msg_id)
+    time_cmd = encoder.create_set_time_command(msg_id, device_local_time)
+    msg_id = encoder.next_message_id(msg_id)
+    return msg_id, [time_cmd, encoder.create_switch_to_custom_curve_command(msg_id)]
+
+
 def generate_light_delete_auto_setting_sequence(
     start_msg_id: tuple[int, int],
     sunrise: datetime.time,
