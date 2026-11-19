@@ -19,6 +19,8 @@ class AquaBleLightCard extends LitElement {
       _loading: { type: Boolean },
       _newSchedule: { type: Object },
       _manualLevels: { type: Object },
+      _customPoints: { type: Array },
+      _customError: { type: String },
       _editingIndex: { type: Number },
     };
   }
@@ -41,6 +43,9 @@ class AquaBleLightCard extends LitElement {
     this._manualLevelsLoaded = false;
     this._manualKelvin = 5400;
     this._scheduleKelvin = 5400;
+    this._customPoints = [];
+    this._customLoadedFor = null;
+    this._customError = "";
   }
 
   setConfig(config) {
@@ -63,6 +68,13 @@ class AquaBleLightCard extends LitElement {
         this._manualLevelsLoaded = true;
       }
       if (this._editingIndex === null && this._newSchedule.channels.length !== this._channels.length) this._resetNewSchedule();
+      if (deviceId && this._customLoadedFor !== deviceId && this._isTunableWhite) {
+        const stored = this._activeSchedulesEntity?.attributes?.custom_curve;
+        this._customPoints = Array.isArray(stored) && stored.length
+          ? stored.map(point => ({time: point.time, levels: {...point.levels}}))
+          : this._defaultCustomPoints();
+        this._customLoadedFor = deviceId;
+      }
     }
   }
 
@@ -255,6 +267,77 @@ class AquaBleLightCard extends LitElement {
     const deviceId = this._deviceId;
     if (deviceId) {
       localStorage.setItem(`aquable_manual_${deviceId}`, JSON.stringify(updated));
+    }
+  }
+
+  _defaultCustomPoints() {
+    const values = (warm) => Object.fromEntries(
+      this._channels.map(({key}) => [key, key === "warm_white" ? warm : 0])
+    );
+    return [
+      {time: "00:00", levels: values(0)},
+      {time: "12:00", levels: values(35)},
+      {time: "20:00", levels: values(35)},
+      {time: "23:30", levels: values(0)},
+    ];
+  }
+
+  _updateCustomPoint(index, field, value) {
+    this._customPoints = this._customPoints.map((point, idx) => idx === index
+      ? field === "time"
+        ? {...point, time: value}
+        : {...point, levels: {...point.levels, [field]: value}}
+      : point
+    );
+    this._customError = "";
+  }
+
+  _addCustomPoint() {
+    if (this._customPoints.length >= 16) return;
+    const occupied = new Set(this._customPoints.map(point => point.time));
+    const time = Array.from({length: 46}, (_, idx) => {
+      const minute = (idx + 1) * 30;
+      return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+    }).find(t => !occupied.has(t));
+    if (time) {
+      this._customPoints = [...this._customPoints, {
+        time, levels: Object.fromEntries(this._channels.map(({key}) => [key, 0]))
+      }].sort((a, b) => a.time.localeCompare(b.time));
+    }
+  }
+
+  _removeCustomPoint(index) {
+    if (this._customPoints.length <= 2 || ["00:00", "23:30"].includes(this._customPoints[index]?.time)) return;
+    this._customPoints = this._customPoints.filter((_, i) => i !== index);
+  }
+
+  async _applyCustomCurve() {
+    if (!this.hass || !this._isTunableWhite) return;
+    const points = [...this._customPoints].sort((a, b) => a.time.localeCompare(b.time));
+    const times = points.map(point => {
+      const match = /^(\d{2}):(\d{2})$/.exec(point.time);
+      return match ? Number(match[1]) * 60 + Number(match[2]) : -1;
+    });
+    if (points.length < 2 || points.length > 16 ||
+        points[0]?.time !== "00:00" || points.at(-1)?.time !== "23:30" ||
+        times.some(t => t < 0 || t > 1410 || t % 30) ||
+        new Set(times).size !== times.length) {
+      this._customError = "Use unique 30-minute times between 00:00 and 23:30, including both endpoints.";
+      return;
+    }
+    this._loading = true;
+    this._customError = "";
+    try {
+      await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_CUSTOM, {
+        device_id: this._deviceId,
+        points,
+      });
+      this._customPoints = points;
+    } catch (error) {
+      this._customError = error?.message || "Could not send custom curve";
+      console.error("Failed to send custom curve:", error);
+    } finally {
+      this._loading = false;
     }
   }
 
