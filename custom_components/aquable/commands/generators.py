@@ -188,6 +188,33 @@ def generate_light_enable_custom_curve_sequence(
     return msg_id, [time_cmd, encoder.create_switch_to_custom_curve_command(msg_id)]
 
 
+def generate_light_replace_scene_sequence(
+    start_msg_id: tuple[int, int],
+    sunrise: datetime.time,
+    sunset: datetime.time,
+    brightness: tuple[int, ...],
+    ramp_up_minutes: int,
+    weekdays: Sequence[str] | None,
+    device_local_time: datetime.datetime,
+) -> tuple[tuple[int, int], list[bytearray]]:
+    """Replace one Tiny Scene Auto schedule without resetting Custom curves."""
+    msg_id = encoder.next_message_id(start_msg_id)
+    frames = [encoder.create_set_time_command(msg_id, device_local_time)]
+    for command in (
+        encoder.create_reset_scene_settings_command,
+        encoder.create_switch_to_auto_mode_command,
+    ):
+        msg_id = encoder.next_message_id(msg_id)
+        frames.append(command(msg_id))
+    msg_id, schedule_frames = generate_light_add_auto_setting_sequence(
+        msg_id, sunrise, sunset, brightness, ramp_up_minutes, weekdays
+    )
+    frames.extend(schedule_frames)
+    msg_id = encoder.next_message_id(msg_id)
+    frames.append(encoder.create_switch_to_auto_mode_command(msg_id))
+    return msg_id, frames
+
+
 def generate_light_delete_auto_setting_sequence(
     start_msg_id: tuple[int, int],
     sunrise: datetime.time,
