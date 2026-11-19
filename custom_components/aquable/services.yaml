@@ -129,6 +129,16 @@ light_set_manual_mode:
           max: 100
           unit_of_measurement: "%"
           mode: box
+    warm_white:
+      name: Warm white brightness
+      description: Warm-white channel brightness (0-100%) for supported fixtures
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: box
     red:
       name: Red brightness
       description: Red channel brightness (0-100%)
@@ -221,6 +231,16 @@ light_set_auto_schedule:
     white:
       name: White brightness
       description: Target white brightness (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: box
+    warm_white:
+      name: Warm white brightness
+      description: Warm-white channel brightness (0-100%) for supported fixtures
       required: false
       selector:
         number:
