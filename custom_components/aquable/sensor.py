@@ -270,6 +270,10 @@ class LightActiveSchedulesSensor(AquaBleEntity, SensorEntity):  # pyright: ignor
             ] if self.coordinator.model_info and self.coordinator.model_info.colors else [
                 "red", "green", "blue", "white"
             ],
+            "custom_curve": list(self.coordinator.entry.options.get("custom_curve", []))
+            if self.coordinator.entry else [],
+            "light_controller_mode": self.coordinator.entry.options.get("light_controller_mode", "auto")
+            if self.coordinator.entry else "auto",
         }
 
     def _handle_coordinator_update(self) -> None:
