@@ -39,6 +39,8 @@ class AquaBleLightCard extends LitElement {
     };
     this._manualLevels = [0, 0, 0, 0];
     this._manualLevelsLoaded = false;
+    this._manualKelvin = 5400;
+    this._scheduleKelvin = 5400;
   }
 
   setConfig(config) {
@@ -60,6 +62,7 @@ class AquaBleLightCard extends LitElement {
         }
         this._manualLevelsLoaded = true;
       }
+      if (this._editingIndex === null && this._newSchedule.channels.length !== this._channels.length) this._resetNewSchedule();
     }
   }
 
@@ -116,6 +119,17 @@ class AquaBleLightCard extends LitElement {
     return [];
   }
 
+  get _channels() {
+    const keys = this._activeSchedulesEntity?.attributes?.channel_keys;
+    const names = Array.isArray(keys) && keys.length ? keys : ["red", "green", "blue", "white"];
+    const colors = { red: ["Red", "#f44336"], green: ["Green", "#4caf50"], blue: ["Blue", "#2196f3"], white: ["White", "#d6eaff"], warm_white: ["Warm White", "#ffbd67"] };
+    return names.map(key => ({ key, name: colors[key]?.[0] ?? key, hex: colors[key]?.[1] ?? "#aaa" }));
+  }
+
+  get _isTunableWhite() {
+    return this._channels.length === 2 && this._channels[0].key === "white" && this._channels[1].key === "warm_white";
+  }
+
   get _deviceId() {
     if (this._config && this._config.device_id) {
       return this._config.device_id;
@@ -143,7 +157,7 @@ class AquaBleLightCard extends LitElement {
       sunsetMinute: 0,
       rampMinutes: 30,
       weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-      channels: [50, 50, 50, 50],
+      channels: this._channels.map(() => 50),
     };
   }
 
@@ -170,6 +184,7 @@ class AquaBleLightCard extends LitElement {
       weekdays: weekdays,
       channels: [...channels],
     };
+    this._scheduleKelvin = this._temperature(channels, 5400);
     this._activeTab = "add";
   }
 
@@ -235,10 +250,7 @@ class AquaBleLightCard extends LitElement {
         sunset_hour: this._newSchedule.sunsetHour,
         sunset_minute: this._newSchedule.sunsetMinute,
         ramp_up_minutes: this._newSchedule.rampMinutes,
-        red: this._newSchedule.channels[0],
-        green: this._newSchedule.channels[1],
-        blue: this._newSchedule.channels[2],
-        white: this._newSchedule.channels[3],
+        ...Object.fromEntries(this._channels.map((channel, idx) => [channel.key, this._newSchedule.channels[idx] ?? 0])),
         weekdays: this._newSchedule.weekdays,
       };
 
@@ -334,10 +346,7 @@ class AquaBleLightCard extends LitElement {
 
       await this.hass.callService(DOMAIN, SERVICES.SET_LIGHT_MANUAL, {
         device_id: deviceId,
-        red: this._manualLevels[0],
-        green: this._manualLevels[1],
-        blue: this._manualLevels[2],
-        white: this._manualLevels[3],
+        ...Object.fromEntries(this._channels.map((channel, idx) => [channel.key, this._manualLevels[idx] ?? 0])),
       });
     } catch (err) {
       console.error("Failed to set manual brightness:", err);
