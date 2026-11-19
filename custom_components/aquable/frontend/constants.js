@@ -3,6 +3,7 @@ export const DOMAIN = "aquable";
 export const SERVICES = {
   SET_LIGHT_MANUAL: "light_set_manual_mode",
   SET_LIGHT_AUTO: "light_set_auto_schedule",
+  SET_LIGHT_CUSTOM: "light_set_custom_curve",
   ENABLE_LIGHT_AUTO: "light_set_mode",
   CLEAR_LIGHT_SCHEDULES: "light_clear_schedules",
   DELETE_LIGHT_AUTO: "light_delete_auto_schedule",
