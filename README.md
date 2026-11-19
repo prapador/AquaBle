@@ -125,7 +125,11 @@ entity: sensor.chihiros_doser_head_1_dosed_today
 
 ---
 
-## AquaBLE Tiny display and schedules (v4.1.4)
+## AquaBLE Tiny display and schedules (v4.1.5)
+
+**Editing order (v4.1.5):** The time editor now has move-up/move-down arrows for each block, including fixed 00:00 and 23:30 anchors. These are 24-hour boundary points and cannot be changed or removed, but their visual position is freely adjustable. The graph and device always receive chronological points. Press **Apply Custom Curve** to save your preferred editor block order. Duplicate times are highlighted and must be resolved before applying.
+
+
 
 The Tiny card now has **Auto**, **Custom Curve**, and **Manual Control** tabs.
 **Auto** displays a 0–100% ramp chart and one daily sunrise/sunset schedule editor; saving replaces prior Scene Auto slots (it does not modify Custom curves).
