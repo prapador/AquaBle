@@ -1,5 +1,18 @@
 # Changelog
 
+## [v4.1.1] — 2026-11-19 — prapador fork
+
+**Chihiros Z Light Tiny two-channel support (fork-only release candidate).**
+
+- Add `warm_white` to manual mode and automatic-schedule Home Assistant actions.
+- Expose channel order through the active-schedules sensor and render model-specific channel sliders on the light card.
+- Add approximate 2800–8000 K mixing and combined brightness controls for the Tiny's cool and warm-white channels.
+- Fix SVG curve generation for dynamic channels using Lit's SVG template helper.
+- Keep the same `aquable` integration domain and device identifiers; no configuration-entry migration is required by the code itself.
+
+**Limitations:** Kelvin conversion has not been calibrated; the latest SVG correction and schedule persistence still require confirmation on real hardware. Switching Marketplace repository ownership on Home Assistant 2026.11 might require removing existing integration config entries; see [FORK.md](./FORK.md) and back up first.
+
+
 All notable changes to AquaBle are documented here.
 
 ---
